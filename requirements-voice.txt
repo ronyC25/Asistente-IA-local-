@@ -1,0 +1,7 @@
+# Dependencias del modo voz (Fase 5). Instalar con:
+#   pip install -r requirements-voice.txt
+faster-whisper>=1.1
+openwakeword>=0.6
+sounddevice>=0.4
+numpy>=1.26
+piper-tts>=1.8

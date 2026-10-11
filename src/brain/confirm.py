@@ -1,0 +1,133 @@
+"""Logica de confirmacion de acciones pendientes (sin dependencias de red)."""
+from __future__ import annotations
+
+import re
+import unicodedata
+from typing import Any
+
+_YES = {
+    "si",
+    "s",
+    "claro",
+    "confirmo",
+    "confirmar",
+    "confirmado",
+    "confirmalo",
+    "ok",
+    "okay",
+    "dale",
+    "adelante",
+    "hazlo",
+    "hacelo",
+    "correcto",
+    "afirmativo",
+    "yes",
+    "y",
+    "vale",
+    "perfecto",
+    "de acuerdo",
+    "por supuesto",
+    "obvio",
+    "efectivamente",
+}
+
+_NO = {
+    "no",
+    "n",
+    "cancelar",
+    "cancela",
+    "cancela lo",
+    "cancelo",
+    "negativo",
+    "no gracias",
+    "espera",
+    "para",
+    "detente",
+    "mejor no",
+    "nunca",
+    "olvidalo",
+}
+
+
+def _norm(text: str) -> str:
+    text = unicodedata.normalize("NFKD", text or "")
+    text = text.encode("ascii", "ignore").decode("ascii")
+    text = text.lower().strip()
+    text = re.sub(r"[^\w\s]", "", text)
+    return re.sub(r"\s+", " ", text).strip()
+
+
+# Verbos que indican que el usuario pide una ACCION (no solo una consulta).
+_ACTION_VERBS = {
+    "manda",
+    "mandame",
+    "envia",
+    "enviame",
+    "crea",
+    "creame",
+    "agenda",
+    "agendame",
+    "programa",
+    "programame",
+    "recuerdame",
+    "recordarme",
+    "elimina",
+    "borra",
+    "edita",
+    "cambia",
+    "cancela",
+    "completa",
+    "marca",
+    "responde",
+    "escribe",
+    "anade",
+    "agrega",
+    "exporta",
+    "avisame",
+    "avisa",
+}
+
+
+def looks_like_action(text: str) -> bool:
+    """Heuristica: True si el mensaje parece pedir una accion de escritura."""
+    t = _norm(text)
+    if not t:
+        return False
+    palabras = set(t.split())
+    return bool(palabras & _ACTION_VERBS)
+
+
+def classify_confirmation(text: str) -> bool | None:
+    """Devuelve True (confirmar), False (cancelar) o None (ambiguo)."""
+    t = _norm(text)
+    if not t:
+        return None
+
+    def matches(word_set: set[str]) -> bool:
+        if t in word_set:
+            return True
+        first = t.split()[0]
+        return first in word_set
+
+    if matches(_NO):
+        return False
+    if matches(_YES):
+        return True
+    return None
+
+
+def build_proposal(parsed: list[tuple[str, dict]], registry: Any) -> str:
+    lines: list[str] = []
+    for name, args in parsed:
+        tool = registry.get(name)
+        if tool is not None and tool.describe is not None:
+            lines.append("• " + tool.describe(args or {}))
+        else:
+            params = ", ".join(f"{k}={v}" for k, v in (args or {}).items())
+            lines.append(f"• {name}({params})")
+    body = "\n".join(lines)
+    return (
+        "Voy a realizar la siguiente accion:\n"
+        f"{body}\n\n"
+        "¿Confirmas? (si/no)"
+    )

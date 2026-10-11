@@ -1,0 +1,69 @@
+"""Carga de configuracion del asistente (settings.yaml + variables de entorno)."""
+from __future__ import annotations
+
+import os
+from pathlib import Path
+
+import yaml
+from dotenv import load_dotenv
+
+ROOT = Path(__file__).resolve().parent.parent
+
+load_dotenv(ROOT / ".env")
+
+
+class Settings:
+    def __init__(self) -> None:
+        cfg_path = ROOT / "config" / "settings.yaml"
+        data: dict = {}
+        if cfg_path.exists():
+            with open(cfg_path, encoding="utf-8") as fh:
+                data = yaml.safe_load(fh) or {}
+
+        self.model = os.getenv("ASSISTANT_MODEL") or data.get("model", "qwen3:8b")
+        self.temperature = float(data.get("temperature", 0.25))
+        self.num_ctx = int(data.get("num_ctx", 8192))
+        self.max_tool_iters = int(data.get("max_tool_iters", 6))
+
+        self.assistant_name = data.get("assistant_name", "Jarvis")
+        self.language = data.get("language", "es")
+
+        db = data.get("database", "data/assistant.db")
+        self.database = db if os.path.isabs(db) else str((ROOT / db).resolve())
+
+        self.host = data.get("host", "127.0.0.1")
+        self.port = int(data.get("port", 8000))
+
+        voice = data.get("voice", {}) or {}
+        self.voice = {
+            "whisper_model": voice.get("whisper_model", "small"),
+            "whisper_device": voice.get("whisper_device", "cpu"),
+            "whisper_compute": voice.get("whisper_compute", "auto"),
+            "tts_voice": voice.get("tts_voice", "es_ES-davefx-medium"),
+            "wake_model": voice.get("wake_model", "hey_jarvis"),
+            "wake_threshold": float(voice.get("wake_threshold", 0.5)),
+            "input_device": voice.get("input_device", None),
+            "silence_ms": int(voice.get("silence_ms", 900)),
+            "max_record_seconds": int(voice.get("max_record_seconds", 12)),
+            "sample_rate": int(voice.get("sample_rate", 16000)),
+            "voices_dir": str(
+                (ROOT / voice.get("voices_dir", "data/voices")).resolve()
+            ),
+        }
+
+        self.ollama_host = os.getenv("OLLAMA_HOST") or None
+
+        # Telegram
+        self.telegram_bot_token = os.getenv("TELEGRAM_BOT_TOKEN") or None
+        self.telegram_chat_id = os.getenv("TELEGRAM_CHAT_ID") or None
+
+        # Email (IMAP/SMTP)
+        self.email_address = os.getenv("EMAIL_ADDRESS") or None
+        self.email_password = os.getenv("EMAIL_PASSWORD") or None
+        self.imap_host = os.getenv("IMAP_HOST") or None
+        self.imap_port = int(os.getenv("IMAP_PORT", "993"))
+        self.smtp_host = os.getenv("SMTP_HOST") or None
+        self.smtp_port = int(os.getenv("SMTP_PORT", "587"))
+
+
+settings = Settings()
