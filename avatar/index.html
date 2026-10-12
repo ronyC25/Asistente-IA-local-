@@ -44,6 +44,15 @@
     #confirm .yes { background: var(--accent2); }
     #confirm .no { background: #33405f; color: var(--text); }
 
+    #start {
+      position: absolute; inset: 0; display: none;
+      flex-direction: column; align-items: center; justify-content: center; gap: 12px;
+      background: rgba(6, 10, 22, 0.55); backdrop-filter: blur(3px);
+      -webkit-app-region: no-drag;
+    }
+    #start button { font-size: 18px; padding: 14px 30px; border-radius: 12px; }
+    #start .hint { color: #cfe0ff; font-size: 13px; text-align: center; max-width: 80%; }
+
     #status {
       position: absolute; top: 14px; left: 14px;
       display: flex; align-items: center; gap: 8px;
@@ -61,6 +70,11 @@
 </head>
 <body>
   <canvas id="canvas"></canvas>
+
+  <div id="start">
+    <button id="startBtn">Iniciar</button>
+    <div class="hint">Pulsa para activar el asistente (voz y sincronizacion de labios)</div>
+  </div>
 
   <div id="status"><span id="dot" class="idle"></span><span id="statetext">iniciando...</span></div>
 

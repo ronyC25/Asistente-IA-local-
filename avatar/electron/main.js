@@ -29,18 +29,21 @@ function createWindow() {
       contextIsolation: true,
       nodeIntegration: false,
       backgroundThrottling: false,
+      autoplayPolicy: "no-user-gesture-required",
     },
   });
 
   win.setAlwaysOnTop(true, "screen-saver");
   win.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true });
   win.setIgnoreMouseEvents(true, { forward: true }); // click-through por defecto
-  win.loadURL(URL);
 
-  // Reintenta si el backend aun no esta levantado.
-  win.webContents.on("did-fail-load", () => {
+  // Si falla la carga (backend aun no levantado), reintenta.
+  win.webContents.on("did-fail-load", (_e, code, desc, url) => {
+    console.error(`[load-fail] ${code} ${desc} ${url}`);
     setTimeout(() => win && win.loadURL(URL), 3000);
   });
+
+  win.loadURL(URL);
 
   const menu = Menu.buildFromTemplate([
     { label: "Mostrar / Ocultar", click: () => (win.isVisible() ? win.hide() : win.show()) },

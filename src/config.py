@@ -53,9 +53,10 @@ class Settings:
 
         avatar = data.get("avatar", {}) or {}
         self.avatar = {
-            "model": avatar.get("model", "Mao"),
+            "model": avatar.get("model", "Haru"),
             "model_path": avatar.get(
-                "model_path", "avatar/public/models/Mao/Mao.model3.json"
+                "model_path",
+                "avatar/public/models/Haru/haru_greeter_t03.model3.json",
             ),
             "half_duplex": bool(avatar.get("half_duplex", True)),
         }

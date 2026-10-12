@@ -1,25 +1,27 @@
 // Avatar Live2D de Jarvis: Pixi + pixi-live2d-display + wLipSync + WebSocket + microfono.
+// Modelo: Haru (Cubism 4, LipSync = ParamMouthOpenY).
 import { createWLipSyncNode } from "./vendor/wlipsync-single.js";
 
 const CONFIG = {
   wsUrl: `${location.protocol === "https:" ? "wss" : "ws"}://${location.host}/ws`,
-  modelPath: "public/models/Mao/Mao.model3.json",
+  modelPath: "public/models/Haru/haru_greeter_t03.model3.json",
   lipsyncProfile: "public/lipsync/profile.json",
-  // Mapa emocion -> expresion del modelo (Mao tiene exp_01..exp_08)
+  // Mapa emocion -> expresion de Haru (f00..f07)
   emotionMap: {
-    joy: "exp_01",
-    happy: "exp_01",
-    excited: "exp_02",
-    sad: "exp_03",
-    angry: "exp_04",
-    surprised: "exp_05",
-    relaxed: "exp_06",
-    shy: "exp_07",
-    confused: "exp_08",
-    smug: "exp_02",
+    joy: "f01",
+    happy: "f01",
+    excited: "f02",
+    sad: "f03",
+    angry: "f04",
+    surprised: "f05",
+    relaxed: "f06",
+    shy: "f07",
+    confused: "f07",
+    smug: "f02",
     neutral: null,
     thinking: null,
   },
+  clickExpressions: ["f00", "f01", "f02", "f03", "f04", "f05", "f06", "f07"],
 };
 
 const $ = (id) => document.getElementById(id);
@@ -29,6 +31,8 @@ const confirmBox = $("confirm");
 const input = $("input");
 const sendBtn = $("send");
 const micBtn = $("mic");
+const startBox = $("start");
+const startBtn = $("startBtn");
 
 let app, model;
 let ws, wsReady = false;
@@ -36,11 +40,19 @@ let audioCtx, lipsyncNode, silentGain;
 let micStream, micSource, micProc;
 let micEnabled = true;
 let state = "idle";
+let started = false;
+
+function fail(step, err) {
+  const name = err && err.name ? err.name + ": " : "";
+  const msg = err && err.message ? err.message : String(err);
+  console.error(`[avatar] fallo en ${step}:`, err);
+  subtitle.textContent = `Error en ${step}: ${name}${msg}`;
+}
 
 // ---------------------------------------------------------------- Pixi + Live2D
 async function initPixi() {
   window.PIXI = PIXI;
-  if (!PIXI.live2d) throw new Error("pixi-live2d-display no cargado");
+  if (!PIXI.live2d) throw new Error("pixi-live2d-display no cargado (revisa vendor/)");
   app = new PIXI.Application({
     view: $("canvas"),
     backgroundAlpha: 0,
@@ -51,7 +63,6 @@ async function initPixi() {
   app.stage.addChild(model);
   fitModel();
   window.addEventListener("resize", fitModel);
-
   const im = model.internalModel;
   const hook = () => applyMouth();
   if (im && typeof im.on === "function") im.on("beforeModelUpdate", hook);
@@ -71,7 +82,8 @@ function fitModel() {
 
 // ---------------------------------------------------------------- Lip-sync
 async function initLipsync() {
-  audioCtx = new AudioContext();
+  if (lipsyncNode) return;
+  if (!audioCtx) audioCtx = new AudioContext();
   const profile = await fetch(CONFIG.lipsyncProfile).then((r) => r.json());
   lipsyncNode = await createWLipSyncNode(audioCtx, profile);
   silentGain = audioCtx.createGain();
@@ -80,9 +92,9 @@ async function initLipsync() {
   silentGain.connect(audioCtx.destination);
 }
 
-function setP(core, id, v) {
+function setParam(core, id, v, lo = 0, hi = 1) {
   try {
-    core.setParameterValueById(id, Math.max(0, Math.min(1, v)), 1);
+    core.setParameterValueById(id, Math.max(lo, Math.min(hi, v)), 1);
   } catch (e) {
     /* parametro inexistente */
   }
@@ -91,15 +103,12 @@ function setP(core, id, v) {
 function applyMouth() {
   if (!model || !lipsyncNode || !model.internalModel) return;
   const core = model.internalModel.coreModel;
-  const vol = Math.min(1, (lipsyncNode.volume || 0) * 1.6);
+  const vol = Math.min(1, (lipsyncNode.volume || 0) * 1.8);
+  setParam(core, "ParamMouthOpenY", vol);
   const w = lipsyncNode.weights || {};
-  const k = vol * 1.3;
-  setP(core, "ParamA", (w.A || 0) * k);
-  setP(core, "ParamI", (w.I || 0) * k);
-  setP(core, "ParamU", (w.U || 0) * k);
-  setP(core, "ParamE", (w.E || 0) * k);
-  setP(core, "ParamO", (w.O || 0) * k);
-  setP(core, "ParamMouthUp", vol * 0.4);
+  const abierta = (w.I || 0) + (w.E || 0);
+  const redonda = (w.O || 0) + (w.U || 0);
+  setParam(core, "ParamMouthForm", Math.max(-1, Math.min(1, abierta - redonda)), -1, 1);
 }
 
 function setExpression(name) {
@@ -113,7 +122,7 @@ function setExpression(name) {
 
 async function playWav(arrayBuffer) {
   try {
-    await audioCtx.resume();
+    if (audioCtx.state === "suspended") await audioCtx.resume();
     const buf = await audioCtx.decodeAudioData(arrayBuffer.slice(0));
     const src = audioCtx.createBufferSource();
     src.buffer = buf;
@@ -127,36 +136,47 @@ async function playWav(arrayBuffer) {
 
 // ---------------------------------------------------------------- Microfono
 async function startMic() {
-  try {
-    micStream = await navigator.mediaDevices.getUserMedia({
+  if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+    throw new Error("getUserMedia no disponible (contexto no seguro)");
+  }
+  const intentos = [
+    { audio: true },
+    {
       audio: {
         echoCancellation: true,
         noiseSuppression: true,
         autoGainControl: true,
         channelCount: 1,
       },
-    });
-    await audioCtx.resume();
-    micSource = audioCtx.createMediaStreamSource(micStream);
-    micProc = audioCtx.createScriptProcessor(4096, 1, 1);
-    micSource.connect(micProc);
-    const mute = audioCtx.createGain();
-    mute.gain.value = 0;
-    micProc.connect(mute);
-    mute.connect(audioCtx.destination);
-    micProc.onaudioprocess = (e) => {
-      if (!micEnabled || !wsReady) return;
-      if (state === "speaking" || state === "thinking") return; // half-duplex
-      const input = e.inputBuffer.getChannelData(0);
-      const ds = downsample(input, audioCtx.sampleRate, 16000);
-      ws.send(floatToInt16(ds));
-    };
-    micBtn.classList.add("on");
-    micBtn.textContent = "Mic ON";
-  } catch (e) {
-    setState("idle");
-    subtitle.textContent = "No se pudo acceder al microfono: " + e.message;
+    },
+  ];
+  let lastErr = null;
+  for (const c of intentos) {
+    try {
+      micStream = await navigator.mediaDevices.getUserMedia(c);
+      break;
+    } catch (e) {
+      lastErr = e;
+    }
   }
+  if (!micStream) throw lastErr || new Error("no se pudo acceder al microfono");
+
+  if (audioCtx.state === "suspended") await audioCtx.resume();
+  micSource = audioCtx.createMediaStreamSource(micStream);
+  micProc = audioCtx.createScriptProcessor(4096, 1, 1);
+  micSource.connect(micProc);
+  const mute = audioCtx.createGain();
+  mute.gain.value = 0;
+  micProc.connect(mute);
+  mute.connect(audioCtx.destination);
+  micProc.onaudioprocess = (e) => {
+    if (!micEnabled || !wsReady) return;
+    if (state === "speaking" || state === "thinking") return; // half-duplex
+    const input = e.inputBuffer.getChannelData(0);
+    ws.send(floatToInt16(downsample(input, audioCtx.sampleRate, 16000)));
+  };
+  micBtn.classList.add("on");
+  micBtn.textContent = "Mic ON";
 }
 
 function stopMic() {
@@ -250,40 +270,28 @@ confirmBox.querySelectorAll("button").forEach((b) =>
   b.addEventListener("click", () => sendText(b.dataset.answer)));
 micBtn.addEventListener("click", () => {
   micEnabled = !micEnabled;
-  if (micEnabled) { micBtn.classList.add("on"); micBtn.textContent = "Mic ON"; }
-  else { micBtn.classList.remove("on"); micBtn.textContent = "Mic OFF"; }
+  micBtn.classList.toggle("on", micEnabled);
+  micBtn.textContent = micEnabled ? "Mic ON" : "Mic OFF";
 });
 
-// Interacciones: la mirada sigue al cursor y el clic dispara una expresion.
 window.addEventListener("pointermove", (e) => {
   if (model && typeof model.focus === "function") model.focus(e.clientX, e.clientY);
 });
 $("canvas").addEventListener("click", () => {
-  const exps = ["exp_01", "exp_02", "exp_05", "exp_07", "exp_08"];
-  setExpression(exps[Math.floor(Math.random() * exps.length)]);
+  const arr = CONFIG.clickExpressions;
+  setExpression(arr[Math.floor(Math.random() * arr.length)]);
 });
 
-// ---------------------------------------------------------------- Arranque
-(async function main() {
-  try {
-    await initPixi();
-    await initLipsync();
-    connect();
-    await startMic();
-    setState("idle");
-    setupOverlay();
-  } catch (e) {
-    console.error(e);
-    subtitle.textContent = "Error al iniciar: " + e.message;
-  }
-})();
-
 // ---------------------------------------------------------------- Overlay Electron
-function setupOverlay() {
+function overlaySetInteractive(on) {
   const api = window.jarvisAPI;
-  if (!api) return; // no estamos dentro de Electron
-  const interactive = [$("bar"), $("status")];
-  interactive.forEach((el) => {
+  if (api) api.setIgnore(!on);
+}
+
+function setupOverlayAfterStart() {
+  const api = window.jarvisAPI;
+  if (!api) return;
+  [$("bar"), $("status")].forEach((el) => {
     if (!el) return;
     el.addEventListener("mouseenter", () => api.setIgnore(false));
     el.addEventListener("mouseleave", () => api.setIgnore(true));
@@ -291,3 +299,35 @@ function setupOverlay() {
   api.setIgnore(true);
 }
 
+// ---------------------------------------------------------------- Arranque
+window.addEventListener("error", (e) => fail("global", e.error || e.message));
+window.addEventListener("unhandledrejection", (e) => fail("promesa", e.reason));
+
+async function start() {
+  if (started) return;
+  started = true;
+  startBtn.disabled = true;
+  try {
+    await initLipsync();
+  } catch (e) { fail("wLipSync", e); return; }
+  try {
+    await startMic();
+  } catch (e) { fail("microfono", e); }
+  startBox.style.display = "none";
+  setState("idle");
+  setupOverlayAfterStart();
+}
+
+async function boot() {
+  startBtn.addEventListener("click", start);
+  try {
+    await initPixi();
+  } catch (e) { fail("modelo", e); return; }
+  try {
+    connect();
+  } catch (e) { fail("websocket", e); }
+  overlaySetInteractive(true); // permitir pulsar "Iniciar" en Electron
+  startBox.style.display = "flex";
+}
+
+boot();

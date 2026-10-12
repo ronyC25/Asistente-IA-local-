@@ -51,7 +51,7 @@ Copy-Item .env.example .env
 
 Requiere los assets (una vez) y Electron instalados:
 ```powershell
-# 1) Descargar librerias + modelo Mao
+# 1) Descargar librerias + modelo Haru
 powershell -ExecutionPolicy Bypass -File avatar\setup_assets.ps1
 
 # 2) Instalar Electron

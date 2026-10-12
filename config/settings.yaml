@@ -29,6 +29,6 @@ voice:
 
 # Avatar Live2D (Fase 7)
 avatar:
-  model: Mao
-  model_path: avatar/public/models/Mao/Mao.model3.json
+  model: Haru
+  model_path: avatar/public/models/Haru/haru_greeter_t03.model3.json
   half_duplex: true

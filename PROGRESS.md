@@ -105,12 +105,14 @@ Requisitos: Ollama en ejecucion con `qwen3:8b` (`ollama pull qwen3:8b`).
 - **Backend**: `src/avatar.py` expone `WS /ws` (mic -> wake word -> Whisper ->
   agente -> Piper) y `POST /tts` (WAV). El parser `src/brain/emotions.py` extrae
   etiquetas `[joy]`... para expresiones.
-- **Frontend**: `avatar/` (Pixi + pixi-live2d-display + Cubism Core + wLipSync),
-  servido en `/avatar/`. Modelo: **Mao** (ejemplo oficial, Cubism 3.x).
+- **Frontend**: `avatar/` (Pixi 7 + pixi-live2d-display + Cubism Core 4.2.2 + wLipSync),
+  servido en `/avatar/`. Modelo: **Haru** (ejemplo oficial, **Cubism 4**,
+  `LipSync = ParamMouthOpenY`).
 - **Overlay**: `avatar/electron/` (ventana transparente, siempre visible,
   click-through con `setIgnoreMouseEvents(forward)`).
+- **Arranque por gesto**: boton "Iniciar" (necesario para `AudioContext`/wLipSync/micro).
 - **Assets** (no versionados): descargar con `avatar/setup_assets.ps1`
-  (librerias JS, Cubism Core, perfil wLipSync y modelo Mao). Electron via `npm install`.
+  (librerias JS, Cubism Core, perfil wLipSync y modelo Haru). Electron via `npm install`.
 
 ### Protocolo `/ws`
 - Entrada: binario PCM int16 16 kHz (microfono) + JSON `{"type":"text"|"mic"|"barge_in"}`.
@@ -167,8 +169,10 @@ aplicacion** (requiere verificacion en 2 pasos).
 - **Secretos**: `.env`, `data/*.db` y `data/voices/` estan en `.gitignore`.
 - **Avatar**: los assets (`avatar/vendor`, `avatar/public/models`, `node_modules`)
   no se versionan; usar `avatar/setup_assets.ps1`. El lip-sync usa el perfil de
-  ejemplo de wLipSync (el mio viene de su repo; si no cargara, se puede ajustar).
-  Modelo Mao = Cubism 3.x (compatible con el runtime Cubism 4 de pixi-live2d-display).
+  ejemplo de wLipSync. Modelo **Haru** = Cubism 4 (compatible con el Core 4.2.2).
+- **Modelo Mao (Cubism 5) = mejora futura (Opcion 2)**: `moc3` v5 no lo lee el
+  Core 4.2.2 ni `pixi-live2d-display` 0.4. Requiere render Cubism 5 (Pixi 8, p. ej.
+  `pixi-live2d5`) + Cubism Core 6.0.1; a cambio da lip-sync por vocales (A/I/U/E/O).
 
 ## Estado de datos
 
