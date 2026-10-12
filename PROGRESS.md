@@ -24,7 +24,7 @@ recordatorios, calendario, notificaciones, Telegram y correo, con interfaz de
 | 3 | Telegram + email | Hecho (email sin configurar) |
 | 4 | Calendario local (SQLite + export .ics) | Hecho |
 | 5 | Voz (wake word + STT + TTS) | Hecho |
-| 6 | UI web + pulido | Pendiente |
+| 6 | UI web + pulido | Hecho (UI de chat web) |
 | Extra | Bot Telegram bidireccional | Pendiente |
 | Extra | Google Calendar API (OAuth) | Pendiente |
 
@@ -58,6 +58,7 @@ src/
     tts.py           # Piper (+ fallback SAPI)
     loop.py          # orquestador de voz
 config/settings.yaml # modelo, web, voz
+web/index.html       # UI de chat en el navegador
 tests/               # 67 tests (pytest)
 ```
 
@@ -121,8 +122,8 @@ aplicacion** (requiere verificacion en 2 pasos).
 ## Pendientes / proximos pasos
 
 1. **Gmail**: rellenar los 5 campos de `.env` y verificar `leer_email`/`enviar_email`.
-2. **Fase 6 - UI web + pulido**: interfaz de chat en navegador, memoria,
-   logs, icono en bandeja del sistema.
+2. **Pulido de la UI web**: memoria de conversacion persistente, visor de logs e
+   icono en la bandeja del sistema.
 3. **Bot Telegram bidireccional**: escuchar mensajes entrantes (long polling de
    `getUpdates`) para controlar el asistente desde el chat de Telegram.
 4. **Google Calendar API**: sincronizacion real (OAuth en Google Cloud) en lugar

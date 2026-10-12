@@ -4,12 +4,15 @@ from __future__ import annotations
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
+from fastapi.responses import HTMLResponse
 from pydantic import BaseModel
 
-from .config import settings
+from .config import ROOT, settings
 from .factory import build_agent
 from .scheduler import shutdown as stop_scheduler
 from .scheduler import start as start_scheduler
+
+_INDEX = ROOT / "web" / "index.html"
 
 
 @asynccontextmanager
@@ -50,6 +53,23 @@ class ChatResponse(BaseModel):
 @app.get("/health")
 def health() -> dict:
     return {"status": "ok", "model": settings.model}
+
+
+@app.get("/", response_class=HTMLResponse)
+def index() -> HTMLResponse:
+    html = _INDEX.read_text(encoding="utf-8")
+    return HTMLResponse(html.replace("{{ASSISTANT_NAME}}", settings.assistant_name))
+
+
+@app.get("/status")
+def status() -> dict:
+    from .tools import calendar, reminders, tasks
+
+    return {
+        "tareas_pendientes": tasks.listar_tareas(estado="pendientes")["total"],
+        "recordatorios_pendientes": reminders.listar_recordatorios("pendientes")["total"],
+        "eventos_proximos": calendar.listar_eventos()["total"],
+    }
 
 
 @app.post("/chat", response_model=ChatResponse)

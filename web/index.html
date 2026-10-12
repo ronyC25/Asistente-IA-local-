@@ -1,0 +1,217 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>{{ASSISTANT_NAME}} - Asistente IA local</title>
+  <style>
+    :root {
+      --bg: #0b1020;
+      --panel: #131a2e;
+      --panel-2: #1b2440;
+      --accent: #4f9cf9;
+      --accent-2: #35d0ba;
+      --text: #e8edf7;
+      --muted: #8b97b3;
+      --user: #2b6ef2;
+      --bot: #1b2440;
+    }
+    * { box-sizing: border-box; }
+    html, body { height: 100%; margin: 0; }
+    body {
+      font-family: "Segoe UI", system-ui, sans-serif;
+      background: radial-gradient(1200px 600px at 50% -10%, #16204a 0%, var(--bg) 55%);
+      color: var(--text);
+      display: flex;
+      flex-direction: column;
+      height: 100vh;
+    }
+    header {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding: 14px 20px;
+      border-bottom: 1px solid #223052;
+      background: rgba(19, 26, 46, 0.7);
+      backdrop-filter: blur(8px);
+    }
+    .dot {
+      width: 10px; height: 10px; border-radius: 50%;
+      background: var(--accent-2);
+      box-shadow: 0 0 12px var(--accent-2);
+    }
+    header h1 { font-size: 16px; margin: 0; font-weight: 600; letter-spacing: .3px; }
+    header .sub { color: var(--muted); font-size: 12px; margin-left: auto; }
+    header button {
+      background: transparent; color: var(--muted); border: 1px solid #2a3a63;
+      border-radius: 8px; padding: 6px 10px; cursor: pointer; font-size: 12px;
+    }
+    header button:hover { color: var(--text); border-color: var(--accent); }
+
+    #chat {
+      flex: 1;
+      overflow-y: auto;
+      padding: 22px clamp(12px, 6vw, 90px);
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+    }
+    .msg {
+      max-width: 78%;
+      padding: 11px 14px;
+      border-radius: 14px;
+      line-height: 1.45;
+      white-space: pre-wrap;
+      word-wrap: break-word;
+      animation: pop .18s ease-out;
+    }
+    @keyframes pop { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; } }
+    .msg.user { align-self: flex-end; background: var(--user); border-bottom-right-radius: 4px; }
+    .msg.bot { align-self: flex-start; background: var(--bot); border: 1px solid #24325a; border-bottom-left-radius: 4px; }
+    .msg.sys { align-self: center; color: var(--muted); font-size: 12px; background: transparent; }
+    .typing { align-self: flex-start; color: var(--muted); font-size: 13px; padding-left: 6px; }
+
+    #confirm {
+      display: none;
+      gap: 10px;
+      padding: 0 clamp(12px, 6vw, 90px) 8px;
+    }
+    #confirm button {
+      border: none; border-radius: 10px; padding: 9px 18px; cursor: pointer;
+      font-size: 14px; font-weight: 600;
+    }
+    #confirm .yes { background: var(--accent-2); color: #05221d; }
+    #confirm .no { background: #33405f; color: var(--text); }
+
+    footer {
+      display: flex;
+      gap: 10px;
+      padding: 14px clamp(12px, 6vw, 90px) 20px;
+      border-top: 1px solid #223052;
+      background: rgba(19, 26, 46, 0.7);
+      backdrop-filter: blur(8px);
+    }
+    #input {
+      flex: 1;
+      background: var(--panel-2);
+      border: 1px solid #2a3a63;
+      color: var(--text);
+      border-radius: 12px;
+      padding: 12px 14px;
+      font-size: 15px;
+      outline: none;
+    }
+    #input:focus { border-color: var(--accent); }
+    #send {
+      background: var(--accent);
+      color: #041024;
+      border: none;
+      border-radius: 12px;
+      padding: 0 22px;
+      font-size: 15px;
+      font-weight: 700;
+      cursor: pointer;
+    }
+    #send:disabled { opacity: .5; cursor: default; }
+  </style>
+</head>
+<body>
+  <header>
+    <span class="dot"></span>
+    <h1>{{ASSISTANT_NAME}}</h1>
+    <span class="sub" id="status">local · listo</span>
+    <button id="reset" title="Nueva conversacion">Nueva sesion</button>
+  </header>
+
+  <div id="chat"></div>
+
+  <div id="confirm">
+    <button class="yes" data-answer="si">Si, confirmar</button>
+    <button class="no" data-answer="no">No, cancelar</button>
+  </div>
+
+  <footer>
+    <input id="input" type="text" placeholder="Escribe tu mensaje..." autocomplete="off" autofocus />
+    <button id="send">Enviar</button>
+  </footer>
+
+  <script>
+    const chat = document.getElementById("chat");
+    const input = document.getElementById("input");
+    const sendBtn = document.getElementById("send");
+    const confirmBox = document.getElementById("confirm");
+    const statusEl = document.getElementById("status");
+
+    let sessionId = localStorage.getItem("jarvis_session");
+    if (!sessionId) {
+      sessionId = (crypto.randomUUID ? crypto.randomUUID() : String(Date.now()));
+      localStorage.setItem("jarvis_session", sessionId);
+    }
+
+    function addMsg(role, text) {
+      const div = document.createElement("div");
+      div.className = "msg " + role;
+      div.textContent = text;
+      chat.appendChild(div);
+      chat.scrollTop = chat.scrollHeight;
+      return div;
+    }
+
+    function setBusy(busy) {
+      sendBtn.disabled = busy;
+      statusEl.textContent = busy ? "local · pensando..." : "local · listo";
+    }
+
+    function showConfirm(show) {
+      confirmBox.style.display = show ? "flex" : "none";
+    }
+
+    async function send(text) {
+      if (!text.trim()) return;
+      addMsg("user", text);
+      input.value = "";
+      showConfirm(false);
+      setBusy(true);
+      const typing = document.createElement("div");
+      typing.className = "typing";
+      typing.textContent = "escribiendo...";
+      chat.appendChild(typing);
+      chat.scrollTop = chat.scrollHeight;
+
+      try {
+        const res = await fetch("/chat", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ message: text, session_id: sessionId }),
+        });
+        const data = await res.json();
+        typing.remove();
+        addMsg("bot", data.reply || "(sin respuesta)");
+        showConfirm(!!data.pending);
+      } catch (e) {
+        typing.remove();
+        addMsg("sys", "Error de conexion: " + e);
+      } finally {
+        setBusy(false);
+        input.focus();
+      }
+    }
+
+    sendBtn.addEventListener("click", () => send(input.value));
+    input.addEventListener("keydown", (e) => { if (e.key === "Enter") send(input.value); });
+
+    confirmBox.querySelectorAll("button").forEach((b) => {
+      b.addEventListener("click", () => send(b.dataset.answer));
+    });
+
+    document.getElementById("reset").addEventListener("click", async () => {
+      await fetch("/session/" + sessionId + "/reset", { method: "POST" });
+      chat.innerHTML = "";
+      showConfirm(false);
+      addMsg("sys", "Nueva conversacion iniciada.");
+    });
+
+    addMsg("sys", "Hola, soy {{ASSISTANT_NAME}}. Escribeme lo que necesites.");
+  </script>
+</body>
+</html>

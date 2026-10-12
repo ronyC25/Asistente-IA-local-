@@ -37,7 +37,7 @@ Copy-Item .env.example .env
 # Chat por texto (CLI)
 .\.venv\Scripts\python.exe -m src.main
 
-# Servidor web  ->  http://127.0.0.1:8000/docs
+# Servidor web con interfaz de chat  ->  http://127.0.0.1:8000/
 .\.venv\Scripts\python.exe -m src.main --web
 
 # Modo voz (di "hey jarvis")
