@@ -1,5 +1,5 @@
 // Overlay de escritorio: ventana transparente, siempre visible y click-through.
-const { app, BrowserWindow, ipcMain, Menu, screen } = require("electron");
+const { app, BrowserWindow, ipcMain, Menu, screen, session } = require("electron");
 const path = require("path");
 
 const URL = process.env.JARVIS_URL || "http://127.0.0.1:8000/avatar/";
@@ -58,6 +58,13 @@ ipcMain.on("set-ignore", (event, ignore) => {
 
 app.whenReady().then(() => {
   Menu.setApplicationMenu(null);
+  // Permitir microfono (necesario para la voz en el overlay).
+  session.defaultSession.setPermissionRequestHandler((_wc, permission, callback) => {
+    callback(permission === "media" || permission === "audioCapture");
+  });
+  session.defaultSession.setPermissionCheckHandler((_wc, permission) => {
+    return permission === "media" || permission === "audioCapture";
+  });
   createWindow();
 });
 
