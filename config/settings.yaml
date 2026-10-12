@@ -26,3 +26,9 @@ voice:
   max_record_seconds: 12
   sample_rate: 16000
   voices_dir: data/voices
+
+# Avatar Live2D (Fase 7)
+avatar:
+  model: Mao
+  model_path: avatar/public/models/Mao/Mao.model3.json
+  half_duplex: true

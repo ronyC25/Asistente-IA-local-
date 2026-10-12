@@ -47,6 +47,25 @@ Copy-Item .env.example .env
 .\.venv\Scripts\python.exe -m src.main --voice --device 2  # elegir microfono
 ```
 
+### Avatar Live2D (Fase 7)
+
+Requiere los assets (una vez) y Electron instalados:
+```powershell
+# 1) Descargar librerias + modelo Mao
+powershell -ExecutionPolicy Bypass -File avatar\setup_assets.ps1
+
+# 2) Instalar Electron
+cd avatar; npm install; cd ..
+
+# 3) Levantar el backend y abrir el avatar
+.\.venv\Scripts\python.exe -m src.main --web     # en una terminal
+cd avatar; npm start                             # overlay de escritorio
+```
+
+- En el navegador: `http://127.0.0.1:8000/avatar/`
+- En Electron: ventana transparente siempre visible; el personaje responde por voz
+  (micrófono del navegador + wake word "hey jarvis") y mueve los labios con lo que habla.
+
 Escribe (o di) cosas como:
 
 - "Anade una tarea: comprar leche, prioridad alta"

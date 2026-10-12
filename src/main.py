@@ -66,6 +66,9 @@ def cli() -> None:
             if user.lower() in {"salir", "exit", "quit", "adios"}:
                 break
             reply, pending = agent.handle(session, user)
+            from .brain.emotions import strip_emotions
+
+            reply, _emociones = strip_emotions(reply)
             print(f"{settings.assistant_name} > {reply}\n")
     finally:
         stop_scheduler()

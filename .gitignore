@@ -9,3 +9,9 @@ data/*.db-journal
 data/voices/
 *.ics
 .pytest_cache/
+
+# Avatar: assets pesados / con licencia propia (regenerar con avatar/setup_assets.ps1)
+avatar/node_modules/
+avatar/vendor/
+avatar/public/models/
+avatar/public/lipsync/

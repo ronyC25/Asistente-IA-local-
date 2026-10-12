@@ -25,8 +25,10 @@ recordatorios, calendario, notificaciones, Telegram y correo, con interfaz de
 | 4 | Calendario local (SQLite + export .ics) | Hecho |
 | 5 | Voz (wake word + STT + TTS) | Hecho |
 | 6 | UI web + pulido | Hecho (UI de chat web) |
+| 7 | Avatar Live2D + overlay Electron + lip-sync | Hecho |
 | Extra | Bot Telegram bidireccional | Pendiente |
 | Extra | Google Calendar API (OAuth) | Pendiente |
+| Extra | Wake word en el navegador | Pendiente (cambio futuro) |
 
 ## Estructura
 
@@ -59,7 +61,11 @@ src/
     loop.py          # orquestador de voz
 config/settings.yaml # modelo, web, voz
 web/index.html       # UI de chat en el navegador
-tests/               # 67 tests (pytest)
+avatar/              # app Live2D + overlay Electron (Fase 7)
+  index.html main.js #   escena Live2D + WebSocket + microfono + lip-sync
+  electron/          #   ventana overlay transparente y click-through
+  setup_assets.ps1   #   descarga librerias + modelo Mao (no versionados)
+tests/               # 72 tests (pytest)
 ```
 
 ## Herramientas del agente (18)
@@ -93,6 +99,23 @@ confirmacion ("si/no").
 ```
 
 Requisitos: Ollama en ejecucion con `qwen3:8b` (`ollama pull qwen3:8b`).
+
+## Avatar Live2D (Fase 7)
+
+- **Backend**: `src/avatar.py` expone `WS /ws` (mic -> wake word -> Whisper ->
+  agente -> Piper) y `POST /tts` (WAV). El parser `src/brain/emotions.py` extrae
+  etiquetas `[joy]`... para expresiones.
+- **Frontend**: `avatar/` (Pixi + pixi-live2d-display + Cubism Core + wLipSync),
+  servido en `/avatar/`. Modelo: **Mao** (ejemplo oficial, Cubism 3.x).
+- **Overlay**: `avatar/electron/` (ventana transparente, siempre visible,
+  click-through con `setIgnoreMouseEvents(forward)`).
+- **Assets** (no versionados): descargar con `avatar/setup_assets.ps1`
+  (librerias JS, Cubism Core, perfil wLipSync y modelo Mao). Electron via `npm install`.
+
+### Protocolo `/ws`
+- Entrada: binario PCM int16 16 kHz (microfono) + JSON `{"type":"text"|"mic"|"barge_in"}`.
+- Salida: `{"type":"state","value":...}`, `{"type":"reply","text":...}`,
+  `{"type":"expression","value":...}`, `{"type":"pending","active":bool}`, y WAV binario.
 
 ## Configuracion
 
@@ -142,6 +165,10 @@ aplicacion** (requiere verificacion en 2 pasos).
 - **Modelo**: `qwen3:8b` a veces necesita el guardarrail de "nudge" para completar
   acciones de escritura tras una lectura (ya implementado en `agent.py`).
 - **Secretos**: `.env`, `data/*.db` y `data/voices/` estan en `.gitignore`.
+- **Avatar**: los assets (`avatar/vendor`, `avatar/public/models`, `node_modules`)
+  no se versionan; usar `avatar/setup_assets.ps1`. El lip-sync usa el perfil de
+  ejemplo de wLipSync (el mio viene de su repo; si no cargara, se puede ajustar).
+  Modelo Mao = Cubism 3.x (compatible con el runtime Cubism 4 de pixi-live2d-display).
 
 ## Estado de datos
 

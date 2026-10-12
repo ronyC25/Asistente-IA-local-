@@ -3,10 +3,12 @@ from __future__ import annotations
 
 from contextlib import asynccontextmanager
 
-from fastapi import FastAPI
-from fastapi.responses import HTMLResponse
+from fastapi import FastAPI, WebSocket
+from fastapi.responses import HTMLResponse, Response
+from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 
+from .avatar import handle_ws
 from .config import ROOT, settings
 from .factory import build_agent
 from .scheduler import shutdown as stop_scheduler
@@ -50,6 +52,10 @@ class ChatResponse(BaseModel):
     pending: dict | None = None
 
 
+class TtsRequest(BaseModel):
+    text: str
+
+
 @app.get("/health")
 def health() -> dict:
     return {"status": "ok", "model": settings.model}
@@ -80,6 +86,9 @@ def chat(req: ChatRequest) -> ChatResponse:
         session = agent.new_session()
         _sessions[req.session_id] = session
     reply, pending = agent.handle(session, req.message)
+    from .brain.emotions import strip_emotions
+
+    reply, _emociones = strip_emotions(reply)
     return ChatResponse(reply=reply, pending=pending)
 
 
@@ -89,7 +98,29 @@ def reset(session_id: str) -> dict:
     return {"reset": session_id}
 
 
+@app.websocket("/ws")
+async def ws_endpoint(ws: WebSocket) -> None:
+    await handle_ws(ws)
+
+
+@app.post("/tts")
+def tts_endpoint(req: TtsRequest) -> Response:
+    from .brain.emotions import strip_emotions
+    from .voice import tts as tts_mod
+
+    texto, _emociones = strip_emotions(req.text)
+    wav = tts_mod.sintetizar_wav_bytes(texto)
+    if not wav:
+        return Response(status_code=400, content=b"")
+    return Response(content=wav, media_type="audio/wav")
+
+
 def run() -> None:
     import uvicorn
 
     uvicorn.run(app, host=settings.host, port=settings.port)
+
+
+_AVATAR_DIR = ROOT / "avatar"
+if _AVATAR_DIR.exists():
+    app.mount("/avatar", StaticFiles(directory=str(_AVATAR_DIR), html=True), name="avatar")

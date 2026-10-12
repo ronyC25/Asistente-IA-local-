@@ -1,0 +1,85 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Jarvis - Avatar</title>
+  <style>
+    :root { --accent: #4f9cf9; --accent2: #35d0ba; --text: #eaf1ff; }
+    * { box-sizing: border-box; }
+    html, body { height: 100%; margin: 0; overflow: hidden; background: transparent; }
+    body {
+      font-family: "Segoe UI", system-ui, sans-serif;
+      color: var(--text);
+      -webkit-user-select: none; user-select: none;
+    }
+    #canvas { position: absolute; inset: 0; width: 100vw; height: 100vh; }
+
+    #bar {
+      position: absolute; left: 50%; bottom: 18px; transform: translateX(-50%);
+      width: min(760px, 92vw);
+      background: rgba(11, 16, 32, 0.72);
+      border: 1px solid #2a3a63; border-radius: 14px;
+      padding: 10px 14px; backdrop-filter: blur(8px);
+      display: flex; flex-direction: column; gap: 8px;
+    }
+    #subtitle { font-size: 15px; line-height: 1.4; min-height: 20px; white-space: pre-wrap; }
+    #subtitle .who { color: var(--accent2); font-weight: 600; }
+    #row { display: flex; gap: 8px; align-items: center; }
+    #input {
+      flex: 1; background: #1b2440; border: 1px solid #2a3a63; color: var(--text);
+      border-radius: 10px; padding: 9px 12px; font-size: 14px; outline: none;
+    }
+    #input:focus { border-color: var(--accent); }
+    button {
+      border: none; border-radius: 10px; padding: 9px 14px; cursor: pointer;
+      font-size: 14px; font-weight: 600; color: #041024; background: var(--accent);
+    }
+    button.ghost { background: #33405f; color: var(--text); }
+    button.on { background: var(--accent2); }
+    button:disabled { opacity: .45; cursor: default; }
+
+    #confirm { display: none; gap: 8px; }
+    #confirm button { flex: 1; }
+    #confirm .yes { background: var(--accent2); }
+    #confirm .no { background: #33405f; color: var(--text); }
+
+    #status {
+      position: absolute; top: 14px; left: 14px;
+      display: flex; align-items: center; gap: 8px;
+      background: rgba(11,16,32,.6); border: 1px solid #2a3a63; border-radius: 10px;
+      padding: 6px 10px; font-size: 12px; color: var(--text);
+      -webkit-app-region: drag; cursor: move;
+    }
+    #dot { width: 9px; height: 9px; border-radius: 50%; background: #6b7899; }
+    #dot.idle { background: #6b7899; }
+    #dot.listening { background: var(--accent2); box-shadow: 0 0 10px var(--accent2); }
+    #dot.thinking { background: #f5b942; box-shadow: 0 0 10px #f5b942; }
+    #dot.speaking { background: var(--accent); box-shadow: 0 0 10px var(--accent); }
+    #wakeup { color: var(--muted, #8b97b3); }
+  </style>
+</head>
+<body>
+  <canvas id="canvas"></canvas>
+
+  <div id="status"><span id="dot" class="idle"></span><span id="statetext">iniciando...</span></div>
+
+  <div id="bar">
+    <div id="subtitle">Cargando avatar...</div>
+    <div id="confirm">
+      <button class="yes" data-answer="si">Si, confirmar</button>
+      <button class="no" data-answer="no">No, cancelar</button>
+    </div>
+    <div id="row">
+      <button id="mic" class="on" title="Activar/desactivar microfono">Mic ON</button>
+      <input id="input" type="text" placeholder="Escribe o di 'hey jarvis'..." autocomplete="off" />
+      <button id="send">Enviar</button>
+    </div>
+  </div>
+
+  <script src="vendor/pixi.min.js"></script>
+  <script src="vendor/live2dcubismcore.min.js"></script>
+  <script src="vendor/pixi-live2d-display-cubism4.min.js"></script>
+  <script type="module" src="main.js"></script>
+</body>
+</html>

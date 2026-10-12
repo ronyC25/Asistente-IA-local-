@@ -1,0 +1,13 @@
+{
+  "name": "jarvis-avatar",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Avatar Live2D overlay de Jarvis (Electron)",
+  "main": "electron/main.js",
+  "scripts": {
+    "start": "electron ."
+  },
+  "devDependencies": {
+    "electron": "^33.2.0"
+  }
+}

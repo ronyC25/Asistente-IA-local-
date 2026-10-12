@@ -1,8 +1,10 @@
 """Text-to-speech con Piper (con respaldo a la voz de Windows)."""
 from __future__ import annotations
 
+import io
 import logging
 import subprocess
+import wave
 from pathlib import Path
 
 import numpy as np
@@ -40,6 +42,22 @@ def sintetizar(texto: str) -> tuple[np.ndarray | None, int]:
     sample_rate = chunks[0].sample_rate
     audio = np.concatenate([c.audio_float_array for c in chunks]).astype("float32")
     return audio, sample_rate
+
+
+def sintetizar_wav_bytes(texto: str) -> bytes | None:
+    """Sintetiza el texto y devuelve un WAV (bytes) para enviar al navegador."""
+    audio, sample_rate = sintetizar(texto)
+    if audio is None or not len(audio):
+        return None
+    pcm = np.clip(audio, -1.0, 1.0)
+    pcm = (pcm * 32767).astype("int16")
+    buffer = io.BytesIO()
+    with wave.open(buffer, "wb") as wav:
+        wav.setnchannels(1)
+        wav.setsampwidth(2)
+        wav.setframerate(sample_rate)
+        wav.writeframes(pcm.tobytes())
+    return buffer.getvalue()
 
 
 def _hablar_sapi(texto: str) -> None:
