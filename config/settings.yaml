@@ -18,7 +18,7 @@ voice:
   whisper_model: small          # tiny | base | small | medium
   whisper_device: cpu           # cpu | cuda (cuda requiere runtime CUDA 12 + cuDNN)
   whisper_compute: auto         # auto | float16 | int8
-  tts_voice: es_ES-davefx-medium
+  tts_voice: es_MX-claude-high
   wake_model: hey_jarvis
   wake_threshold: 0.5
   input_device:                 # vacio = dispositivo por defecto; o un indice (ver --list-audio)
