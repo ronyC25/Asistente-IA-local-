@@ -254,6 +254,15 @@ micBtn.addEventListener("click", () => {
   else { micBtn.classList.remove("on"); micBtn.textContent = "Mic OFF"; }
 });
 
+// Interacciones: la mirada sigue al cursor y el clic dispara una expresion.
+window.addEventListener("pointermove", (e) => {
+  if (model && typeof model.focus === "function") model.focus(e.clientX, e.clientY);
+});
+$("canvas").addEventListener("click", () => {
+  const exps = ["exp_01", "exp_02", "exp_05", "exp_07", "exp_08"];
+  setExpression(exps[Math.floor(Math.random() * exps.length)]);
+});
+
 // ---------------------------------------------------------------- Arranque
 (async function main() {
   try {
