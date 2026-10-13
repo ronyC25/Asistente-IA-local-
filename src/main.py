@@ -4,6 +4,7 @@ Uso:
     python -m src.main           # CLI interactiva
     python -m src.main --web     # servidor FastAPI
     python -m src.main --voice   # modo voz (wake word + STT + TTS)
+    python -m src.main --telegram  # bot de Telegram bidireccional
 """
 from __future__ import annotations
 
@@ -126,6 +127,10 @@ def main() -> None:
     _setup_console()
     if "--list-audio" in sys.argv:
         _list_audio()
+    elif "--telegram" in sys.argv or "telegram" in sys.argv:
+        from .telegram_bot import run as run_telegram
+
+        run_telegram()
     elif "--web" in sys.argv or "web" in sys.argv:
         from .api import run
 

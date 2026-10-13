@@ -61,6 +61,11 @@ class Settings:
             "half_duplex": bool(avatar.get("half_duplex", True)),
         }
 
+        telegram = data.get("telegram", {}) or {}
+        self.telegram = {
+            "poll_timeout": int(telegram.get("poll_timeout", 25)),
+        }
+
         self.ollama_host = os.getenv("OLLAMA_HOST") or None
 
         # Telegram

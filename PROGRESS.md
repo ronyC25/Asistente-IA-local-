@@ -26,7 +26,7 @@ recordatorios, calendario, notificaciones, Telegram y correo, con interfaz de
 | 5 | Voz (wake word + STT + TTS) | Hecho |
 | 6 | UI web + pulido | Hecho (UI de chat web) |
 | 7 | Avatar Live2D + overlay Electron + lip-sync | Hecho |
-| Extra | Bot Telegram bidireccional | Pendiente |
+| Extra | Bot Telegram bidireccional | Hecho (modo `--telegram`) |
 | Extra | Google Calendar API (OAuth) | Pendiente |
 | Extra | Wake word en el navegador | Pendiente (cambio futuro) |
 
@@ -40,7 +40,8 @@ src/
   factory.py         # construye el agente
   api.py             # FastAPI (/chat, /health)
   scheduler.py       # APScheduler (recordatorios)
-  main.py            # CLI / --web / --voice
+  telegram_bot.py    # bot bidireccional de Telegram (long polling)
+  main.py            # CLI / --web / --voice / --telegram
   brain/
     agent.py         # loop de tool-calling + confirmacion + guardarrailes
     prompts.py       # system prompt
@@ -94,6 +95,9 @@ confirmacion ("si/no").
 .\.venv\Scripts\python.exe -m src.main --list-audio           # listar microfonos
 .\.venv\Scripts\python.exe -m src.main --voice --device 2     # elegir microfono
 
+# Bot de Telegram bidireccional (escribir al bot y responde)
+.\.venv\Scripts\python.exe -m src.main --telegram
+
 # Tests
 .\.venv\Scripts\python.exe -m pytest -q
 ```
@@ -118,6 +122,18 @@ Requisitos: Ollama en ejecucion con `qwen3:8b` (`ollama pull qwen3:8b`).
 - Entrada: binario PCM int16 16 kHz (microfono) + JSON `{"type":"text"|"mic"|"barge_in"}`.
 - Salida: `{"type":"state","value":...}`, `{"type":"reply","text":...}`,
   `{"type":"expression","value":...}`, `{"type":"pending","active":bool}`, y WAV binario.
+
+## Bot de Telegram (bidireccional)
+
+- `src/telegram_bot.py`: hilo *daemon* con **long polling** (`getUpdates`, `offset`,
+  `timeout` de `telegram.poll_timeout`). Modo dedicado: `python -m src.main --telegram`.
+- **Seguridad**: solo procesa mensajes de `TELEGRAM_CHAT_ID` (ignora el resto).
+- **Sesion persistente por chat**: la confirmacion "si/no" de acciones de escritura
+  funciona entre mensajes. Comandos `/start` y `/reset` reinician la conversacion.
+- **Aviso**: solo puede haber **un** consumidor de `getUpdates` a la vez. Mientras
+  corre el bot, no usar `python -m src.tools.messaging` (descubrimiento de chat_id).
+- Depuracion: el overlay Electron abre DevTools con **F12 / Ctrl+Shift+I** o el menu
+  contextual (clic derecho) -> *Abrir DevTools*.
 
 ## Configuracion
 
@@ -150,7 +166,8 @@ aplicacion** (requiere verificacion en 2 pasos).
 2. **Pulido de la UI web**: memoria de conversacion persistente, visor de logs e
    icono en la bandeja del sistema.
 3. **Bot Telegram bidireccional**: escuchar mensajes entrantes (long polling de
-   `getUpdates`) para controlar el asistente desde el chat de Telegram.
+   `getUpdates`) para controlar el asistente desde el chat de Telegram. **Hecho**
+   (modo `--telegram`, `src/telegram_bot.py`).
 4. **Google Calendar API**: sincronizacion real (OAuth en Google Cloud) en lugar
    del export manual a `.ics`.
 5. **Wake word personalizado**: entrenar un modelo para activarlo diciendo solo

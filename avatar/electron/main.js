@@ -45,9 +45,22 @@ function createWindow() {
 
   win.loadURL(URL);
 
+  // F12 / Ctrl+Shift+I abren las DevTools (util para depurar el avatar).
+  win.webContents.on("before-input-event", (event, input) => {
+    const key = (input.key || "").toLowerCase();
+    if (
+      input.type === "keyDown" &&
+      (input.key === "F12" || (input.control && input.shift && key === "i"))
+    ) {
+      event.preventDefault();
+      win.webContents.toggleDevTools();
+    }
+  });
+
   const menu = Menu.buildFromTemplate([
     { label: "Mostrar / Ocultar", click: () => (win.isVisible() ? win.hide() : win.show()) },
     { label: "Recargar", click: () => win.reload() },
+    { label: "Abrir DevTools", click: () => win.webContents.toggleDevTools() },
     { type: "separator" },
     { label: "Salir", click: () => app.quit() },
   ]);
