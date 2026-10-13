@@ -21,19 +21,36 @@ if (-not (Get-Process ollama -ErrorAction SilentlyContinue)) {
     Write-Host "[i] Ollama ya esta en ejecucion." -ForegroundColor DarkGray
 }
 
-# 2) Servidor web (backend + avatar) en su propia ventana
+# 2) Servidor web (backend + avatar) en su propia ventana.
+#    Nota: la ruta puede contener espacios -> hay que entrecomillarla.
+$webScript = Join-Path $root "start-web.ps1"
 Write-Host "[>] Abriendo servidor web..." -ForegroundColor Cyan
 Start-Process -FilePath "powershell" `
-    -ArgumentList "-NoExit", "-ExecutionPolicy", "Bypass", "-File", (Join-Path $root "start-web.ps1")
+    -ArgumentList "-NoExit -ExecutionPolicy Bypass -File `"$webScript`""
 
-# 3) Bot de Telegram en su propia ventana
+# Esperar a que el backend responda antes de lanzar el avatar.
+Write-Host "[>] Esperando al servidor web..." -ForegroundColor Cyan
+$listo = $false
+for ($i = 0; $i -lt 40; $i++) {
+    try {
+        Invoke-WebRequest "http://127.0.0.1:8000/status" -UseBasicParsing -TimeoutSec 2 | Out-Null
+        $listo = $true; break
+    } catch { Start-Sleep -Seconds 1 }
+}
+if ($listo) {
+    Write-Host "[ok] Servidor web listo." -ForegroundColor Green
+} else {
+    Write-Host "[!] El servidor web no respondio en 40s. Revisa su ventana." -ForegroundColor Yellow
+}
+
+# 3) Bot de Telegram en su propia ventana.
+$tgScript = Join-Path $root "start-telegram.ps1"
 Write-Host "[>] Abriendo bot de Telegram..." -ForegroundColor Cyan
 Start-Process -FilePath "powershell" `
-    -ArgumentList "-NoExit", "-ExecutionPolicy", "Bypass", "-File", (Join-Path $root "start-telegram.ps1")
+    -ArgumentList "-NoExit -ExecutionPolicy Bypass -File `"$tgScript`""
 
-# 4) Avatar (overlay Electron); espera un poco a que el backend levante
+# 4) Avatar (overlay Electron).
 if (Test-Path -LiteralPath (Join-Path $root "avatar\node_modules")) {
-    Start-Sleep -Seconds 6
     Write-Host "[>] Abriendo avatar (overlay)..." -ForegroundColor Cyan
     Start-Process -FilePath "cmd.exe" -ArgumentList "/k", "npm start" `
         -WorkingDirectory (Join-Path $root "avatar")
