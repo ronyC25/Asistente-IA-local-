@@ -86,9 +86,9 @@ def chat(req: ChatRequest) -> ChatResponse:
         session = agent.new_session()
         _sessions[req.session_id] = session
     reply, pending = agent.handle(session, req.message)
-    from .brain.emotions import strip_emotions
+    from .brain.emotions import limpiar_respuesta
 
-    reply, _emociones = strip_emotions(reply)
+    reply, _emociones = limpiar_respuesta(reply)
     return ChatResponse(reply=reply, pending=pending)
 
 
@@ -105,10 +105,10 @@ async def ws_endpoint(ws: WebSocket) -> None:
 
 @app.post("/tts")
 def tts_endpoint(req: TtsRequest) -> Response:
-    from .brain.emotions import strip_emotions
+    from .brain.emotions import limpiar_respuesta
     from .voice import tts as tts_mod
 
-    texto, _emociones = strip_emotions(req.text)
+    texto, _emociones = limpiar_respuesta(req.text)
     wav = tts_mod.sintetizar_wav_bytes(texto)
     if not wav:
         return Response(status_code=400, content=b"")

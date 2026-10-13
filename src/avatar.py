@@ -9,7 +9,7 @@ import logging
 import numpy as np
 from fastapi import WebSocket, WebSocketDisconnect
 
-from .brain.emotions import strip_emotions
+from .brain.emotions import limpiar_respuesta
 from .config import settings
 from .factory import build_agent
 from .voice import stt, tts
@@ -68,7 +68,7 @@ async def handle_ws(ws: WebSocket) -> None:
         try:
             await ws.send_json({"type": "state", "value": "thinking"})
             reply, pending = await asyncio.to_thread(agent.handle, session, texto)
-            limpio, emociones = strip_emotions(reply)
+            limpio, emociones = limpiar_respuesta(reply)
             if emociones:
                 await ws.send_json({"type": "expression", "value": emociones[-1]})
             await ws.send_json({"type": "reply", "text": limpio})

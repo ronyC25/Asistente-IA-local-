@@ -118,9 +118,9 @@ class TelegramBot:
         try:
             session = self._session(chat_id)
             reply, _pending = self._agent.handle(session, texto)
-            from .brain.emotions import strip_emotions
+            from .brain.emotions import limpiar_respuesta
 
-            limpio, _emociones = strip_emotions(reply or "")
+            limpio, _emociones = limpiar_respuesta(reply or "")
             self._send(chat_id, limpio or "(sin respuesta)")
         except Exception as exc:  # noqa: BLE001
             log.exception("error procesando mensaje de Telegram")
