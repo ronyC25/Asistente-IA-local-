@@ -221,3 +221,31 @@ def test_reintento_con_thinking():
     assert reply == "Estoy revisando..."
     # 1er intento y nudge sin thinking; 2º reintento con thinking.
     assert agent.client.thinks == [False, False, True]
+
+
+def test_ajustar_args_historial():
+    agent = Agent(_registry(), model="dummy", system_prompt="sys")
+    parsed = [("listar_recordatorios", {"estado": "pendientes"})]
+    out = agent._ajustar_args(parsed, "hazme una lista con mis recordatorios")
+    assert out == [("listar_recordatorios", {"estado": "historial"})]
+
+
+def test_ajustar_args_todos_a_historial():
+    agent = Agent(_registry(), model="dummy", system_prompt="sys")
+    parsed = [("listar_recordatorios", {"estado": "todos"})]
+    out = agent._ajustar_args(parsed, "muestrame todos mis recordatorios")
+    assert out == [("listar_recordatorios", {"estado": "historial"})]
+
+
+def test_ajustar_args_respeta_cancelados():
+    agent = Agent(_registry(), model="dummy", system_prompt="sys")
+    parsed = [("listar_recordatorios", {"estado": "cancelados"})]
+    out = agent._ajustar_args(parsed, "muestrame los recordatorios cancelados")
+    assert out == [("listar_recordatorios", {"estado": "cancelados"})]
+
+
+def test_ajustar_args_respeta_pendientes():
+    agent = Agent(_registry(), model="dummy", system_prompt="sys")
+    parsed = [("listar_recordatorios", {})]
+    out = agent._ajustar_args(parsed, "que recordatorios pendientes tengo?")
+    assert out == [("listar_recordatorios", {})]

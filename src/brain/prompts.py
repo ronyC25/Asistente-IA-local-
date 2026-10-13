@@ -60,5 +60,8 @@ que devuelva. Nunca digas que estas revisando ni respondas de memoria.
 atrasadas, listar_recordatorios(vencidos=true) para recordatorios vencidos y \
 listar_eventos(pasados=true) para eventos ya ocurridos. No confundas 'vencidas' \
 (fecha ya pasada) con 'vencen_hoy' (fecha de hoy).
+13. Si el usuario pide "la lista de recordatorios", "todos mis recordatorios" o \
+"el historial", usa listar_recordatorios(estado="historial") para incluir tambien \
+los ya enviados (sin los cancelados). Sin especificar, por defecto usa pendientes.
 
 Se breve: responde en una o dos frases salvo que se pida detalle."""

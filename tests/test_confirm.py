@@ -2,7 +2,12 @@ from __future__ import annotations
 
 import pytest
 
-from src.brain.confirm import classify_confirmation, looks_like_action, looks_like_query
+from src.brain.confirm import (
+    classify_confirmation,
+    looks_like_action,
+    looks_like_query,
+    quiere_historial_recordatorios,
+)
 
 
 @pytest.mark.parametrize("text", ["sí", "si", "Claro", "confirmo", "dale", "ok", "CONFIRMAR", "sí, hazlo"])
@@ -62,3 +67,27 @@ def test_looks_like_query_true(text):
 @pytest.mark.parametrize("text", ["hola", "gracias", ""])
 def test_looks_like_query_false(text):
     assert looks_like_query(text) is False
+
+
+@pytest.mark.parametrize(
+    "text",
+    [
+        "hazme una lista con mis recordatorios",
+        "muestrame todos mis recordatorios",
+        "cuales son mis recordatorios",
+    ],
+)
+def test_quiere_historial_true(text):
+    assert quiere_historial_recordatorios(text) is True
+
+
+@pytest.mark.parametrize(
+    "text",
+    ["que recordatorios pendientes tengo", "recordatorios de hoy", ""],
+)
+def test_quiere_historial_false(text):
+    assert quiere_historial_recordatorios(text) is False
+
+
+def test_quiere_historial_cancelados_false():
+    assert quiere_historial_recordatorios("muestrame los recordatorios cancelados") is False

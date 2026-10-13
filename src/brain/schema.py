@@ -307,8 +307,18 @@ def build_tools() -> list[dict]:
                 "properties": {
                     "estado": {
                         "type": "string",
-                        "enum": ["pendientes", "enviados", "cancelados", "todos"],
-                        "description": "Que recordatorios listar (por defecto pendientes)",
+                        "enum": [
+                            "pendientes",
+                            "enviados",
+                            "cancelados",
+                            "historial",
+                            "todos",
+                        ],
+                        "description": (
+                            "Que recordatorios listar. 'historial' = pendientes + "
+                            "enviados (sin cancelados); 'todos' incluye cancelados. "
+                            "Por defecto 'pendientes'."
+                        ),
                     },
                     "vencidos": {
                         "type": "boolean",

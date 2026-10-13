@@ -11,6 +11,7 @@ from .confirm import (
     classify_confirmation,
     looks_like_action,
     looks_like_query,
+    quiere_historial_recordatorios,
 )
 from .registry import Registry
 
@@ -89,6 +90,24 @@ class Agent:
         if self.keep_alive is not None:
             kwargs["keep_alive"] = self.keep_alive
         return self.client.chat(**kwargs)
+
+    def _ajustar_args(
+        self, parsed: list[tuple[str, dict]], user_text: str | None
+    ) -> list[tuple[str, dict]]:
+        """Corrige args que el modelo deja por defecto cuando el usuario pide el
+        historial de recordatorios (p. ej. 'la lista de recordatorios')."""
+        if not user_text:
+            return parsed
+        ajustado: list[tuple[str, dict]] = []
+        for name, args in parsed:
+            if name == "listar_recordatorios":
+                est = str((args or {}).get("estado", "")).strip().lower()
+                if est in ("", "pendiente", "pendientes", "todos", "todas") and (
+                    quiere_historial_recordatorios(user_text)
+                ):
+                    args = {**(args or {}), "estado": "historial"}
+            ajustado.append((name, args))
+        return ajustado
 
     def _trim(self, session: Session) -> None:
         """Recorta el historial: conserva el system (idx 0) y los ultimos
@@ -209,6 +228,7 @@ class Agent:
                 (tc["function"]["name"], _norm_args(tc["function"].get("arguments")))
                 for tc in tool_calls
             ]
+            parsed = self._ajustar_args(parsed, user_text)
             assistant_msg = {
                 "role": "assistant",
                 "content": message.get("content") or "",

@@ -92,6 +92,11 @@ y `listar_eventos(pasados=true)` para lo **ya pasado**; `vencen_hoy` para hoy. L
 confirmacion de eliminar/completar/cancelar **resuelve el titulo real por id**
 (p. ej. *"Eliminar la tarea 5 «Cenar Broster»"*).
 
+Recordatorios: estado **`historial`** = pendientes + enviados (**sin** cancelados).
+El agente lo aplica al pedir "la lista / todos mis recordatorios" (ajuste determinista
+`agent._ajustar_args` + `confirm.quiere_historial_recordatorios`), porque el modelo
+tendia a dejar el estado por defecto (`pendientes`) y decir "no hay ninguno".
+
 ## Como arrancar
 
 > Usa siempre el Python del `.venv` (`.\.venv\Scripts\python.exe`) o los scripts

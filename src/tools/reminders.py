@@ -27,12 +27,14 @@ CREATE TABLE IF NOT EXISTS reminders (
 """
 
 _ESTADO_FILTRO = {
-    "pendientes": "pendiente",
-    "pendiente": "pendiente",
-    "enviados": "enviado",
-    "enviado": "enviado",
-    "cancelados": "cancelado",
-    "cancelado": "cancelado",
+    "pendientes": ("pendiente",),
+    "pendiente": ("pendiente",),
+    "enviados": ("enviado",),
+    "enviado": ("enviado",),
+    "cancelados": ("cancelado",),
+    "cancelado": ("cancelado",),
+    "historial": ("pendiente", "enviado"),
+    "historiales": ("pendiente", "enviado"),
     "todos": None,
     "todas": None,
 }
@@ -96,14 +98,16 @@ def listar_recordatorios(
     estado = (estado or "pendientes").strip().lower()
     if estado not in _ESTADO_FILTRO:
         raise ValueError(
-            "estado no valido: usa pendientes, enviados, cancelados o todos"
+            "estado no valido: usa pendientes, enviados, cancelados, "
+            "historial o todos"
         )
     filtro = _ESTADO_FILTRO[estado]
     conds: list[str] = []
     params: list = []
     if filtro:
-        conds.append("estado = ?")
-        params.append(filtro)
+        placeholders = ", ".join("?" for _ in filtro)
+        conds.append(f"estado IN ({placeholders})")
+        params.extend(filtro)
     if vencidos:
         conds.append("datetime(cuando) < datetime('now', 'localtime')")
     clause = ("WHERE " + " AND ".join(conds)) if conds else ""

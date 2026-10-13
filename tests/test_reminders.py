@@ -105,3 +105,18 @@ def test_listar_vencidos():
     vencidos = reminders.listar_recordatorios(vencidos=True)
     assert vencidos["total"] == 1
     assert vencidos["recordatorios"][0]["texto"] == "Vencido"
+
+
+def test_listar_historial_excluye_cancelados():
+    r1 = reminders.crear_recordatorio("Uno", _futuro(10))
+    r2 = reminders.crear_recordatorio("Dos", _futuro(20))
+    reminders.marcar_enviado(r1["id"])
+    reminders.cancelar_recordatorio(r2["id"])
+
+    historial = reminders.listar_recordatorios("historial")
+    textos = {x["texto"] for x in historial["recordatorios"]}
+    assert "Uno" in textos  # enviado: si
+    assert "Dos" not in textos  # cancelado: excluido
+
+    todos = reminders.listar_recordatorios("todos")
+    assert {x["texto"] for x in todos["recordatorios"]} == {"Uno", "Dos"}

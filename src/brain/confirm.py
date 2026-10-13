@@ -143,6 +143,45 @@ def looks_like_query(text: str) -> bool:
     return bool(palabras & _QUERY_WORDS)
 
 
+_HISTORIAL_WORDS = {
+    "lista",
+    "listado",
+    "listame",
+    "todos",
+    "todas",
+    "historial",
+    "completos",
+    "completas",
+    "cuales",
+}
+_PENDIENTE_WORDS = {
+    "pendiente",
+    "pendientes",
+    "proximo",
+    "proximos",
+    "vencen",
+    "vencido",
+    "vencidos",
+    "futuro",
+    "futuros",
+    "activo",
+    "activos",
+}
+
+
+def quiere_historial_recordatorios(text: str) -> bool:
+    """True si el usuario pide el historial de recordatorios (no solo pendientes)."""
+    t = _norm(text)
+    if not t:
+        return False
+    if "cancelad" in t:  # pide cancelados explicitamente
+        return False
+    palabras = set(t.split())
+    if palabras & _PENDIENTE_WORDS:
+        return False
+    return bool(palabras & _HISTORIAL_WORDS)
+
+
 def classify_confirmation(text: str) -> bool | None:
     """Devuelve True (confirmar), False (cancelar) o None (ambiguo)."""
     t = _norm(text)
