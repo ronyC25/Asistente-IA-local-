@@ -183,6 +183,10 @@ aplicacion** (requiere verificacion en 2 pasos).
 - **Scheduler**: los recordatorios solo se disparan mientras la app esta abierta.
 - **Modelo**: `qwen3:8b` a veces necesita el guardarrail de "nudge" para completar
   acciones de escritura tras una lectura (ya implementado en `agent.py`).
+- **Rendimiento LLM**: qwen3 con *thinking* ON generaba ~10x mas tokens y ~18x mas
+  tiempo (medido: 7.17s/103 tok vs 0.40s/10 tok). Ahora se llama con `think=False`,
+  `num_predict: 400`, `keep_alive: 30m`, `num_ctx: 4096` e `history_limit: 16`
+  (recorte de historial por sesion). Todo configurable en `settings.yaml`.
 - **Secretos**: `.env`, `data/*.db` y `data/voices/` estan en `.gitignore`.
 - **Avatar**: los assets (`avatar/vendor`, `avatar/public/models`, `node_modules`)
   no se versionan; usar `avatar/setup_assets.ps1`. El lip-sync usa el perfil de

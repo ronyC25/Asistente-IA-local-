@@ -114,3 +114,68 @@ def test_sin_nudge_en_consulta():
     reply, info = agent.handle(s, "¿Qué tareas tengo?")
     assert info is None
     assert reply == "Tienes 3 tareas."
+
+
+class _CaptureClient:
+    def __init__(self):
+        self.kwargs = None
+
+    def chat(self, **kwargs):
+        self.kwargs = kwargs
+        return {"message": {"role": "assistant", "content": "ok"}}
+
+
+def test_call_pasa_opciones():
+    agent = Agent(
+        _registry(),
+        model="dummy",
+        system_prompt="sys",
+        num_predict=400,
+        keep_alive="30m",
+    )
+    agent.client = _CaptureClient()
+    agent.handle(agent.new_session(), "hola")
+    kw = agent.client.kwargs
+    assert kw["think"] is False
+    assert kw["options"]["num_predict"] == 400
+    assert kw["options"]["num_ctx"] == 4096
+    assert kw["keep_alive"] == "30m"
+
+
+def test_keep_alive_omitido_si_none():
+    agent = Agent(
+        _registry(), model="dummy", system_prompt="sys", keep_alive=None
+    )
+    agent.client = _CaptureClient()
+    agent.handle(agent.new_session(), "hola")
+    assert "keep_alive" not in agent.client.kwargs
+
+
+def test_trim_historial():
+    agent = Agent(
+        _registry(), model="dummy", system_prompt="sys", history_limit=4
+    )
+    s = agent.new_session()
+    for i in range(20):
+        s.messages.append({"role": "user", "content": f"u{i}"})
+        s.messages.append({"role": "assistant", "content": f"a{i}"})
+    agent._trim(s)
+    assert s.messages[0]["role"] == "system"
+    assert len(s.messages) <= 5
+    assert s.messages[1]["role"] == "user"
+
+
+def test_trim_quita_tool_huerfano():
+    agent = Agent(
+        _registry(), model="dummy", system_prompt="sys", history_limit=2
+    )
+    s = agent.new_session()
+    s.messages += [
+        {"role": "user", "content": "u0"},
+        {"role": "assistant", "content": "", "tool_calls": [{"x": 1}]},
+        {"role": "tool", "content": "{}"},
+        {"role": "assistant", "content": "a1"},
+    ]
+    agent._trim(s)
+    assert s.messages[0]["role"] == "system"
+    assert s.messages[1]["role"] != "tool"

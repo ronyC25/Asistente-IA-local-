@@ -50,7 +50,10 @@ class Agent:
         system_prompt: str,
         temperature: float = 0.25,
         max_iters: int = 6,
-        num_ctx: int = 8192,
+        num_ctx: int = 4096,
+        num_predict: int = 400,
+        keep_alive: str | int | None = "30m",
+        history_limit: int = 16,
         host: str | None = None,
     ) -> None:
         self.registry = registry
@@ -59,18 +62,41 @@ class Agent:
         self.temperature = temperature
         self.max_iters = max_iters
         self.num_ctx = num_ctx
+        self.num_predict = num_predict
+        self.keep_alive = keep_alive
+        self.history_limit = history_limit
         self.client = ollama.Client(host=host) if host else ollama.Client()
 
     def new_session(self) -> Session:
         return Session(self.system_prompt)
 
     def _call(self, session: Session) -> dict:
-        return self.client.chat(
-            model=self.model,
-            messages=session.messages,
-            tools=self.registry.schemas(),
-            options={"temperature": self.temperature, "num_ctx": self.num_ctx},
-        )
+        options: dict = {"temperature": self.temperature, "num_ctx": self.num_ctx}
+        if self.num_predict:
+            options["num_predict"] = self.num_predict
+        kwargs: dict = {
+            "model": self.model,
+            "messages": session.messages,
+            "tools": self.registry.schemas(),
+            "options": options,
+            "think": False,
+        }
+        if self.keep_alive is not None:
+            kwargs["keep_alive"] = self.keep_alive
+        return self.client.chat(**kwargs)
+
+    def _trim(self, session: Session) -> None:
+        """Recorta el historial: conserva el system (idx 0) y los ultimos
+        ``history_limit`` mensajes. Descarta los mensajes ``tool`` iniciales que
+        quedarian huerfanos (sin su ``assistant(tool_calls)`` previo)."""
+        limit = self.history_limit
+        if limit <= 0 or len(session.messages) <= limit + 1:
+            return
+        system = session.messages[0]
+        keep = session.messages[1:][-limit:]
+        while keep and keep[0].get("role") == "tool":
+            keep = keep[1:]
+        session.messages = [system] + keep
 
     def _execute(self, name: str, args: dict) -> dict:
         tool = self.registry.get(name)
@@ -112,6 +138,7 @@ class Agent:
                 )
             return self._run_loop(session)
 
+        self._trim(session)
         session.messages.append({"role": "user", "content": user_text})
         return self._run_loop(session, user_text=user_text)
 

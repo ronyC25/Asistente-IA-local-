@@ -26,5 +26,8 @@ def build_agent() -> Agent:
         temperature=settings.temperature,
         max_iters=settings.max_tool_iters,
         num_ctx=settings.num_ctx,
+        num_predict=settings.num_predict,
+        keep_alive=settings.keep_alive,
+        history_limit=settings.history_limit,
         host=settings.ollama_host,
     )

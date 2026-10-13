@@ -1,7 +1,10 @@
 # Configuracion del asistente.
 model: qwen3:8b
 temperature: 0.25
-num_ctx: 8192
+num_ctx: 4096            # contexto (menor = menos VRAM)
+num_predict: 400         # tope de tokens de salida por respuesta
+keep_alive: 30m          # mantiene el modelo en VRAM (evita recargas)
+history_limit: 16        # nº maximo de mensajes de historial por sesion
 max_tool_iters: 6
 
 assistant_name: Jarvis
