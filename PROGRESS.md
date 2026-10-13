@@ -87,6 +87,7 @@ confirmacion ("si/no").
 
 ```powershell
 # Atajos (usan el .venv automaticamente)
+.\start-all.ps1        # TODO: Ollama + web + Telegram + avatar (overlay)
 .\start-web.ps1        # servidor web
 .\start-telegram.ps1   # bot de Telegram bidireccional
 .\start.ps1 -Mode web|telegram|voice|cli
@@ -122,6 +123,9 @@ Requisitos: Ollama en ejecucion con `qwen3:8b` (`ollama pull qwen3:8b`).
   `LipSync = ParamMouthOpenY`).
 - **Overlay**: `avatar/electron/` (ventana transparente, siempre visible,
   click-through con `setIgnoreMouseEvents(forward)`).
+- **Requisito**: el overlay/navegador necesita el **servidor web** (`--web`) corriendo
+  (sirve `/avatar/`, `/ws` y `/tts`). El modo `--telegram` NO sirve el avatar.
+  Para levantar todo de una vez: `.\start-all.ps1`.
 - **Arranque por gesto**: boton "Iniciar" (necesario para `AudioContext`/wLipSync/micro).
 - **Assets** (no versionados): descargar con `avatar/setup_assets.ps1`
   (librerias JS, Cubism Core, perfil wLipSync y modelo Haru). Electron via `npm install`.

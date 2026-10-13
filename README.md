@@ -40,6 +40,7 @@ Copy-Item .env.example .env
 
 ```powershell
 # Atajos (recomendado, usan el .venv automaticamente)
+.\start-all.ps1          # TODO: Ollama + web + Telegram + avatar (overlay)
 .\start-web.ps1          # servidor web
 .\start-telegram.ps1     # bot de Telegram bidireccional
 
@@ -63,6 +64,10 @@ Copy-Item .env.example .env
 ```
 
 ### Avatar Live2D (Fase 7)
+
+> El avatar (overlay/navegador) **necesita el servidor web (`--web`) corriendo**, porque
+> es quien sirve `/avatar/`, el WebSocket `/ws` y `/tts`. El modo `--telegram` **no**
+> sirve el avatar. La forma facil es `.\start-all.ps1` (levanta todo).
 
 Requiere los assets (una vez) y Electron instalados:
 ```powershell

@@ -36,6 +36,7 @@ const startBtn = $("startBtn");
 
 let app, model;
 let ws, wsReady = false;
+let wsFails = 0;
 let audioCtx, lipsyncNode, silentGain;
 let micStream, micSource, micProc;
 let micEnabled = true;
@@ -209,8 +210,20 @@ function floatToInt16(f32) {
 function connect() {
   ws = new WebSocket(CONFIG.wsUrl);
   ws.binaryType = "arraybuffer";
-  ws.onopen = () => { wsReady = true; };
-  ws.onclose = () => { wsReady = false; setTimeout(connect, 2500); };
+  ws.onopen = () => {
+    wsReady = true;
+    wsFails = 0;
+    if (!started) subtitle.textContent = 'Conectado. Di "hey jarvis" o escribe abajo.';
+  };
+  ws.onclose = () => {
+    wsReady = false;
+    wsFails++;
+    if (wsFails >= 2 && !started) {
+      subtitle.textContent =
+        "Sin conexion con el servidor. Arranca el backend (start-web.ps1 o --web).";
+    }
+    setTimeout(connect, 2500);
+  };
   ws.onerror = () => { wsReady = false; };
   ws.onmessage = (ev) => {
     if (typeof ev.data !== "string") { playWav(ev.data); return; }
