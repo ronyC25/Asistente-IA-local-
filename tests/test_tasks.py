@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from datetime import datetime, timedelta
+
 import pytest
 
 from src import config
@@ -64,3 +66,18 @@ def test_fecha_invalida():
 def test_fecha_iso_valida():
     t = tasks.crear_tarea("Entrega", fecha_limite="2026-11-01")
     assert t["fecha_limite"].startswith("2026-11-01")
+
+
+def test_listar_vencidas():
+    pasado = (datetime.now() - timedelta(days=1)).isoformat(timespec="minutes")
+    futuro = (datetime.now() + timedelta(days=2)).isoformat(timespec="minutes")
+    tasks.crear_tarea("Atrasada", fecha_limite=pasado)
+    tasks.crear_tarea("A tiempo", fecha_limite=futuro)
+    tasks.crear_tarea("Sin fecha")
+
+    vencidas = tasks.listar_tareas(vencidas=True)
+    assert vencidas["total"] == 1
+    assert vencidas["tareas"][0]["titulo"] == "Atrasada"
+
+    # sin el filtro siguen apareciendo todas las pendientes
+    assert tasks.listar_tareas()["total"] == 3

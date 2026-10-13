@@ -1,6 +1,24 @@
 from __future__ import annotations
 
-from src.brain.schema import build_tools
+import pytest
+
+from src import config
+from src.brain.schema import _describe_eliminar, build_tools
+from src.tools import tasks
+
+
+@pytest.fixture
+def tmp_db(tmp_path):
+    config.settings.database = str(tmp_path / "test.db")
+    tasks._conn().close()
+    yield
+
+
+def test_describe_eliminar_muestra_titulo(tmp_db):
+    t = tasks.crear_tarea("Cenar Broster")
+    txt = _describe_eliminar({"id": t["id"]})
+    assert "Cenar Broster" in txt
+    assert str(t["id"]) in txt
 
 
 def test_tools_esperadas_presentes():

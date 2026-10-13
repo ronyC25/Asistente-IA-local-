@@ -57,3 +57,15 @@ def test_exportar_ics(tmp_path):
     assert "BEGIN:VEVENT" in contenido
     assert "SUMMARY:Evento A" in contenido
     assert "END:VCALENDAR" in contenido
+
+
+def test_listar_pasados():
+    calendar.crear_evento(
+        "Ayer",
+        (datetime.now() - timedelta(days=1)).isoformat(timespec="minutes"),
+    )
+    calendar.crear_evento("Manana", _futuro(1))
+    pasados = calendar.listar_eventos(pasados=True)
+    assert pasados["total"] == 1
+    assert pasados["eventos"][0]["titulo"] == "Ayer"
+    assert calendar.listar_eventos()["total"] == 1  # proximos

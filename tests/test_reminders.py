@@ -95,3 +95,13 @@ def test_scheduler_reprograma_recurrente(monkeypatch):
     assert actualizado["id"] == r["id"]
     assert actualizado["cuando"] != r["cuando"]
     assert actualizado["estado"] == "pendiente"
+
+
+def test_listar_vencidos():
+    r = reminders.crear_recordatorio("Vencido", _futuro(5))
+    reminders.crear_recordatorio("Futuro", _futuro(120))
+    pasado = (datetime.now() - timedelta(minutes=1)).isoformat(timespec="minutes")
+    reminders.reprogramar(r["id"], pasado)
+    vencidos = reminders.listar_recordatorios(vencidos=True)
+    assert vencidos["total"] == 1
+    assert vencidos["recordatorios"][0]["texto"] == "Vencido"

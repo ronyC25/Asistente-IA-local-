@@ -85,27 +85,45 @@ def listar_eventos(
     hasta: str | None = None,
     incluir_cancelados: bool = False,
     limite: int = 100,
+    pasados: bool = False,
 ) -> dict:
     where: list[str] = []
     params: list = []
     if not incluir_cancelados:
         where.append("estado = 'activo'")
-    ini = parse_datetime(desde) if desde else datetime.now()
-    where.append("inicio >= ?")
-    params.append(ini.isoformat())
+    if desde:
+        where.append("inicio >= ?")
+        params.append(parse_datetime(desde).isoformat())
+    elif not pasados:
+        where.append("inicio >= ?")
+        params.append(datetime.now().isoformat())
     if hasta:
         where.append("inicio <= ?")
         params.append(parse_datetime(hasta).isoformat())
-    clause = "WHERE " + " AND ".join(where)
+    elif pasados:
+        where.append("inicio < ?")
+        params.append(datetime.now().isoformat())
+    clause = ("WHERE " + " AND ".join(where)) if where else ""
+    orden = "inicio DESC" if pasados else "inicio"
     conn = _conn()
     try:
         rows = conn.execute(
-            f"SELECT * FROM events {clause} ORDER BY inicio LIMIT ?",
+            f"SELECT * FROM events {clause} ORDER BY {orden} LIMIT ?",
             (*params, int(limite)),
         ).fetchall()
     finally:
         conn.close()
     return {"total": len(rows), "eventos": [_row(r) for r in rows]}
+
+
+def obtener_evento(id: int) -> dict | None:
+    """Devuelve un evento por id (o None). Para describir propuestas."""
+    conn = _conn()
+    try:
+        row = conn.execute("SELECT * FROM events WHERE id = ?", (int(id),)).fetchone()
+    finally:
+        conn.close()
+    return _row(row) if row is not None else None
 
 
 def editar_evento(

@@ -111,6 +111,7 @@ def listar_tareas(
     estado: str = "pendientes",
     prioridad: str | None = None,
     vencen_hoy: bool = False,
+    vencidas: bool = False,
     limite: int = 50,
 ) -> dict:
     estado = (estado or "pendientes").strip().lower()
@@ -129,6 +130,11 @@ def listar_tareas(
         params.append(_norm_prioridad(prioridad))
     if vencen_hoy:
         where.append("date(fecha_limite) = date('now', 'localtime')")
+    if vencidas:
+        where.append(
+            "fecha_limite IS NOT NULL AND "
+            "datetime(fecha_limite) < datetime('now', 'localtime')"
+        )
     clause = ("WHERE " + " AND ".join(where)) if where else ""
     conn = _conn()
     try:
@@ -141,6 +147,16 @@ def listar_tareas(
     finally:
         conn.close()
     return {"total": len(rows), "tareas": [_row(r) for r in rows]}
+
+
+def obtener_tarea(id: int) -> dict | None:
+    """Devuelve una tarea por id (o None si no existe). Para describir propuestas."""
+    conn = _conn()
+    try:
+        row = conn.execute("SELECT * FROM tasks WHERE id = ?", (int(id),)).fetchone()
+    finally:
+        conn.close()
+    return _row(row) if row is not None else None
 
 
 def completar_tarea(id: int | None = None, titulo: str | None = None) -> dict:

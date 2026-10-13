@@ -56,5 +56,9 @@ Pon una sola etiqueta al inicio y no la expliques ni la repitas.
 SIEMPRE primero a la herramienta de lectura correspondiente (listar_tareas, \
 listar_recordatorios, listar_eventos o leer_email) y responde con los datos reales \
 que devuelva. Nunca digas que estas revisando ni respondas de memoria.
+12. Para lo que YA PASO usa los filtros: listar_tareas(vencidas=true) para tareas \
+atrasadas, listar_recordatorios(vencidos=true) para recordatorios vencidos y \
+listar_eventos(pasados=true) para eventos ya ocurridos. No confundas 'vencidas' \
+(fecha ya pasada) con 'vencen_hoy' (fecha de hoy).
 
 Se breve: responde en una o dos frases salvo que se pida detalle."""

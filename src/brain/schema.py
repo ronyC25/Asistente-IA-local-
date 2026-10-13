@@ -25,24 +25,42 @@ def _describe_crear_tarea(a: dict) -> str:
     return ", ".join(parts)
 
 
+def _tarea_ref(a: dict) -> str:
+    if a.get("id") is not None:
+        t = tasks.obtener_tarea(a["id"])
+        return f"{a['id']} «{t['titulo']}»" if t else str(a["id"])
+    return repr(a.get("titulo"))
+
+
+def _recordatorio_ref(a: dict) -> str:
+    if a.get("id") is not None:
+        r = reminders.obtener_recordatorio(a["id"])
+        return f"{a['id']} «{r['texto']}»" if r else str(a["id"])
+    return "?"
+
+
+def _evento_ref(a: dict) -> str:
+    if a.get("id") is not None:
+        e = calendar.obtener_evento(a["id"])
+        return f"{a['id']} «{e['titulo']}»" if e else str(a["id"])
+    return "?"
+
+
 def _describe_completar(a: dict) -> str:
-    ref = a.get("id") if a.get("id") is not None else a.get("titulo")
-    return f"Marcar como completada la tarea {ref!r}"
+    return f"Marcar como completada la tarea {_tarea_ref(a)}"
 
 
 def _describe_editar(a: dict) -> str:
-    ref = a.get("id") if a.get("id") is not None else a.get("titulo")
     cambios = {
         k: v
         for k, v in a.items()
         if k not in ("id", "titulo") and v is not None
     }
-    return f"Editar la tarea {ref!r} -> {cambios}"
+    return f"Editar la tarea {_tarea_ref(a)} -> {cambios}"
 
 
 def _describe_eliminar(a: dict) -> str:
-    ref = a.get("id") if a.get("id") is not None else a.get("titulo")
-    return f"Eliminar la tarea {ref!r}"
+    return f"Eliminar la tarea {_tarea_ref(a)}"
 
 
 def _describe_crear_recordatorio(a: dict) -> str:
@@ -85,7 +103,7 @@ def _describe_gestionar_listas(a: dict) -> str:
 
 
 def _describe_cancelar_recordatorio(a: dict) -> str:
-    return f"Cancelar el recordatorio id {a.get('id')}"
+    return f"Cancelar el recordatorio {_recordatorio_ref(a)}"
 
 
 def _describe_enviar_telegram(a: dict) -> str:
@@ -115,11 +133,11 @@ def _describe_crear_evento(a: dict) -> str:
 
 def _describe_editar_evento(a: dict) -> str:
     cambios = {k: v for k, v in a.items() if k != "id" and v is not None}
-    return f"Editar el evento id {a.get('id')} -> {cambios}"
+    return f"Editar el evento {_evento_ref(a)} -> {cambios}"
 
 
 def _describe_cancelar_evento(a: dict) -> str:
-    return f"Cancelar el evento id {a.get('id')}"
+    return f"Cancelar el evento {_evento_ref(a)}"
 
 
 def _describe_exportar_ics(a: dict) -> str:
@@ -176,6 +194,12 @@ def build_tools() -> list[dict]:
                     "vencen_hoy": {
                         "type": "boolean",
                         "description": "Solo tareas que vencen hoy",
+                    },
+                    "vencidas": {
+                        "type": "boolean",
+                        "description": (
+                            "Solo tareas cuya fecha limite YA PASO (atrasadas/vencidas)"
+                        ),
                     },
                     "limite": {"type": "integer", "description": "Maximo de resultados"},
                 },
@@ -285,6 +309,12 @@ def build_tools() -> list[dict]:
                         "type": "string",
                         "enum": ["pendientes", "enviados", "cancelados", "todos"],
                         "description": "Que recordatorios listar (por defecto pendientes)",
+                    },
+                    "vencidos": {
+                        "type": "boolean",
+                        "description": (
+                            "Solo recordatorios cuya hora YA PASO y siguen pendientes"
+                        ),
                     },
                     "limite": {"type": "integer"},
                 },
@@ -413,6 +443,13 @@ def build_tools() -> list[dict]:
                     "desde": {"type": "string", "description": "Fecha ISO inicial (opcional)"},
                     "hasta": {"type": "string", "description": "Fecha ISO final (opcional)"},
                     "incluir_cancelados": {"type": "boolean"},
+                    "pasados": {
+                        "type": "boolean",
+                        "description": (
+                            "Solo eventos que YA OCURRIERON (inicio anterior a ahora). "
+                            "Por defecto se listan los proximos."
+                        ),
+                    },
                     "limite": {"type": "integer"},
                 },
             },

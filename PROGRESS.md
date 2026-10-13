@@ -70,7 +70,7 @@ avatar/              # app Live2D + overlay Electron (Fase 7)
   electron/          #   ventana overlay transparente y click-through
   setup_assets.ps1   #   descarga librerias + modelo Haru (no versionados)
 start*.ps1           # lanzadores (venv + modos + start-all)
-tests/               # 112 tests (pytest)
+tests/               # 116 tests (pytest)
 ```
 
 ## Herramientas del agente (22)
@@ -86,6 +86,11 @@ tests/               # 112 tests (pytest)
 Regla: las de **lectura** se ejecutan al instante; las de **escritura** piden
 confirmacion ("si/no"). Las tools de notas/listas estan **agrupadas** (un grupo de
 consulta y otro de gestion) para no inflar el prompt de herramientas.
+
+Filtros de fecha: `listar_tareas(vencidas=true)`, `listar_recordatorios(vencidos=true)`
+y `listar_eventos(pasados=true)` para lo **ya pasado**; `vencen_hoy` para hoy. La
+confirmacion de eliminar/completar/cancelar **resuelve el titulo real por id**
+(p. ej. *"Eliminar la tarea 5 «Cenar Broster»"*).
 
 ## Como arrancar
 

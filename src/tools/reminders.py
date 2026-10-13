@@ -88,27 +88,46 @@ def crear_recordatorio(
     return _row(row)
 
 
-def listar_recordatorios(estado: str = "pendientes", limite: int = 50) -> dict:
+def listar_recordatorios(
+    estado: str = "pendientes",
+    limite: int = 50,
+    vencidos: bool = False,
+) -> dict:
     estado = (estado or "pendientes").strip().lower()
     if estado not in _ESTADO_FILTRO:
         raise ValueError(
             "estado no valido: usa pendientes, enviados, cancelados o todos"
         )
     filtro = _ESTADO_FILTRO[estado]
+    conds: list[str] = []
+    params: list = []
+    if filtro:
+        conds.append("estado = ?")
+        params.append(filtro)
+    if vencidos:
+        conds.append("datetime(cuando) < datetime('now', 'localtime')")
+    clause = ("WHERE " + " AND ".join(conds)) if conds else ""
     conn = _conn()
     try:
-        if filtro:
-            rows = conn.execute(
-                "SELECT * FROM reminders WHERE estado = ? ORDER BY cuando LIMIT ?",
-                (filtro, int(limite)),
-            ).fetchall()
-        else:
-            rows = conn.execute(
-                "SELECT * FROM reminders ORDER BY cuando LIMIT ?", (int(limite),)
-            ).fetchall()
+        rows = conn.execute(
+            f"SELECT * FROM reminders {clause} ORDER BY cuando LIMIT ?",
+            (*params, int(limite)),
+        ).fetchall()
     finally:
         conn.close()
     return {"total": len(rows), "recordatorios": [_row(r) for r in rows]}
+
+
+def obtener_recordatorio(id: int) -> dict | None:
+    """Devuelve un recordatorio por id (o None). Para describir propuestas."""
+    conn = _conn()
+    try:
+        row = conn.execute(
+            "SELECT * FROM reminders WHERE id = ?", (int(id),)
+        ).fetchone()
+    finally:
+        conn.close()
+    return _row(row) if row is not None else None
 
 
 def cancelar_recordatorio(id: int) -> dict:
