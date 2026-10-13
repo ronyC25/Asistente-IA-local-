@@ -105,15 +105,15 @@ def test_nudge_recupera_rechazo():
     assert "Enviar por Telegram" in reply
 
 
-def test_sin_nudge_en_consulta():
+def test_sin_nudge_en_saludo():
     agent = Agent(_registry(), model="dummy", system_prompt="sys")
     agent.client = _ScriptClient(
-        [{"message": {"role": "assistant", "content": "Tienes 3 tareas."}}]
+        [{"message": {"role": "assistant", "content": "Hola, ¿en qué ayudo?"}}]
     )
     s = agent.new_session()
-    reply, info = agent.handle(s, "¿Qué tareas tengo?")
+    reply, info = agent.handle(s, "hola")
     assert info is None
-    assert reply == "Tienes 3 tareas."
+    assert reply == "Hola, ¿en qué ayudo?"
 
 
 class _CaptureClient:
@@ -179,3 +179,45 @@ def test_trim_quita_tool_huerfano():
     agent._trim(s)
     assert s.messages[0]["role"] == "system"
     assert s.messages[1]["role"] != "tool"
+
+
+def test_nudge_lectura_recupera():
+    responses = [
+        {"message": {"role": "assistant", "content": "Estoy revisando, un momento..."}},
+        {
+            "message": {
+                "role": "assistant",
+                "content": "",
+                "tool_calls": [
+                    {"function": {"name": "fecha_hora_actual", "arguments": {}}}
+                ],
+            }
+        },
+        {"message": {"role": "assistant", "content": "Hoy es lunes."}},
+    ]
+    agent = Agent(_registry(), model="dummy", system_prompt="sys")
+    agent.client = _ScriptClient(responses)
+    s = agent.new_session()
+    reply, info = agent.handle(s, "revisa las tareas y dime la fecha")
+    assert info is None
+    assert reply == "Hoy es lunes."
+
+
+class _NarratingClient:
+    def __init__(self):
+        self.thinks: list = []
+
+    def chat(self, **kwargs):
+        self.thinks.append(kwargs.get("think"))
+        return {"message": {"role": "assistant", "content": "Estoy revisando..."}}
+
+
+def test_reintento_con_thinking():
+    agent = Agent(_registry(), model="dummy", system_prompt="sys")
+    agent.client = _NarratingClient()
+    s = agent.new_session()
+    reply, info = agent.handle(s, "revisa las tareas")
+    assert info is None
+    assert reply == "Estoy revisando..."
+    # 1er intento y nudge sin thinking; 2º reintento con thinking.
+    assert agent.client.thinks == [False, False, True]

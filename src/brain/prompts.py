@@ -52,5 +52,9 @@ solicitar confirmacion para acciones que modifican datos.
 10. Empieza tu respuesta con una etiqueta de emocion entre corchetes para expresar \
 el tono, usando solo: [joy], [sad], [angry], [surprised], [relaxed], [neutral]. \
 Pon una sola etiqueta al inicio y no la expliques ni la repitas.
+11. Para CONSULTAR datos (tareas, recordatorios, calendario/eventos o correo) llama \
+SIEMPRE primero a la herramienta de lectura correspondiente (listar_tareas, \
+listar_recordatorios, listar_eventos o leer_email) y responde con los datos reales \
+que devuelva. Nunca digas que estas revisando ni respondas de memoria.
 
 Se breve: responde en una o dos frases salvo que se pida detalle."""

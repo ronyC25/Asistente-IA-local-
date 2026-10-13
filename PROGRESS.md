@@ -187,6 +187,10 @@ aplicacion** (requiere verificacion en 2 pasos).
   tiempo (medido: 7.17s/103 tok vs 0.40s/10 tok). Ahora se llama con `think=False`,
   `num_predict: 400`, `keep_alive: 30m`, `num_ctx: 4096` e `history_limit: 16`
   (recorte de historial por sesion). Todo configurable en `settings.yaml`.
+- **Guardarrail de consultas**: si el modelo responde una CONSULTA (tareas,
+  recordatorios, calendario, correo) sin llamar a la herramienta de lectura, el
+  agente le insiste (`_NUDGE_READ`, `looks_like_query`) y, si aun asi no la llama,
+  reintenta una vez con `think=True`.
 - **Secretos**: `.env`, `data/*.db` y `data/voices/` estan en `.gitignore`.
 - **Avatar**: los assets (`avatar/vendor`, `avatar/public/models`, `node_modules`)
   no se versionan; usar `avatar/setup_assets.ps1`. El lip-sync usa el perfil de

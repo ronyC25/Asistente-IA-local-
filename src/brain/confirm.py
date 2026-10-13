@@ -97,6 +97,52 @@ def looks_like_action(text: str) -> bool:
     return bool(palabras & _ACTION_VERBS)
 
 
+# Verbos/sustantivos que indican una CONSULTA (lectura de datos).
+_QUERY_WORDS = {
+    "revisa",
+    "revisar",
+    "revisame",
+    "revisen",
+    "lista",
+    "listar",
+    "listame",
+    "muestra",
+    "muestrame",
+    "mostrar",
+    "dime",
+    "consulta",
+    "consultar",
+    "cuantas",
+    "cuantos",
+    "cuales",
+    "cual",
+    "tengo",
+    "hay",
+    "ver",
+    "veamos",
+    "pendientes",
+    "agenda",
+    "calendario",
+    "eventos",
+    "recordatorios",
+    "tareas",
+    "correos",
+    "correo",
+    "emails",
+    "hoy",
+    "manana",
+}
+
+
+def looks_like_query(text: str) -> bool:
+    """Heuristica: True si el mensaje parece pedir una consulta (lectura)."""
+    t = _norm(text)
+    if not t:
+        return False
+    palabras = set(t.split())
+    return bool(palabras & _QUERY_WORDS)
+
+
 def classify_confirmation(text: str) -> bool | None:
     """Devuelve True (confirmar), False (cancelar) o None (ambiguo)."""
     t = _norm(text)

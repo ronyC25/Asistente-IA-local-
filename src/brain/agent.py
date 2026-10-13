@@ -6,7 +6,12 @@ from typing import Any
 
 import ollama
 
-from .confirm import build_proposal, classify_confirmation, looks_like_action
+from .confirm import (
+    build_proposal,
+    classify_confirmation,
+    looks_like_action,
+    looks_like_query,
+)
 from .registry import Registry
 
 
@@ -70,7 +75,7 @@ class Agent:
     def new_session(self) -> Session:
         return Session(self.system_prompt)
 
-    def _call(self, session: Session) -> dict:
+    def _call(self, session: Session, think: bool = False) -> dict:
         options: dict = {"temperature": self.temperature, "num_ctx": self.num_ctx}
         if self.num_predict:
             options["num_predict"] = self.num_predict
@@ -79,7 +84,7 @@ class Agent:
             "messages": session.messages,
             "tools": self.registry.schemas(),
             "options": options,
-            "think": False,
+            "think": think,
         }
         if self.keep_alive is not None:
             kwargs["keep_alive"] = self.keep_alive
@@ -152,28 +157,54 @@ class Agent:
         "hacerlo usando la herramienta."
     )
 
+    _NUDGE_READ = (
+        "IMPORTANTE: el usuario te pidio CONSULTAR datos (tareas, recordatorios, "
+        "calendario/eventos o correos) y NO llamaste ninguna herramienta de lectura, "
+        "solo respondiste con texto. Llama AHORA a la herramienta de lectura adecuada "
+        "(listar_tareas, listar_recordatorios, listar_eventos o leer_email) y responde "
+        "con los datos reales que devuelva. No digas que estas revisando ni respondas "
+        "de memoria."
+    )
+
     def _run_loop(
-        self, session: Session, user_text: str | None = None, allow_nudge: bool = True
+        self,
+        session: Session,
+        user_text: str | None = None,
+        stage: int = 0,
+        think: bool = False,
     ) -> tuple[str, dict | None]:
         saw_write = False
+        saw_tool = False
         for _ in range(self.max_iters):
-            response = self._call(session)
+            response = self._call(session, think=think)
             message = response.get("message", {}) or {}
             tool_calls = message.get("tool_calls") or []
 
             if not tool_calls:
                 content = message.get("content") or ""
-                if (
-                    allow_nudge
-                    and user_text
-                    and not saw_write
-                    and looks_like_action(user_text)
-                ):
-                    session.messages.append({"role": "system", "content": self._NUDGE})
-                    return self._run_loop(session, user_text=user_text, allow_nudge=False)
+                nudge: str | None = None
+                if user_text and stage < 2:
+                    if looks_like_action(user_text) and not saw_write:
+                        nudge = self._NUDGE
+                    elif (
+                        looks_like_query(user_text)
+                        and not saw_tool
+                        and not looks_like_action(user_text)
+                    ):
+                        nudge = self._NUDGE_READ
+                if nudge is not None:
+                    session.messages.append({"role": "system", "content": nudge})
+                    # 1er reintento sin pensar; 2º (si el nudge no basto) con thinking.
+                    return self._run_loop(
+                        session,
+                        user_text=user_text,
+                        stage=stage + 1,
+                        think=stage == 1,
+                    )
                 session.messages.append({"role": "assistant", "content": content})
                 return content, None
 
+            saw_tool = True
             parsed: list[tuple[str, dict]] = [
                 (tc["function"]["name"], _norm_args(tc["function"].get("arguments")))
                 for tc in tool_calls

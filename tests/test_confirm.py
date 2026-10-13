@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import pytest
 
-from src.brain.confirm import classify_confirmation, looks_like_action
+from src.brain.confirm import classify_confirmation, looks_like_action, looks_like_query
 
 
 @pytest.mark.parametrize("text", ["sí", "si", "Claro", "confirmo", "dale", "ok", "CONFIRMAR", "sí, hazlo"])
@@ -42,3 +42,23 @@ def test_looks_like_action_true(text):
 )
 def test_looks_like_action_false(text):
     assert looks_like_action(text) is False
+
+
+@pytest.mark.parametrize(
+    "text",
+    [
+        "revisa las tareas",
+        "muéstrame el calendario",
+        "¿qué recordatorios tengo?",
+        "lista mis eventos de hoy",
+        "cuántas tareas pendientes hay",
+        "lee mis correos",
+    ],
+)
+def test_looks_like_query_true(text):
+    assert looks_like_query(text) is True
+
+
+@pytest.mark.parametrize("text", ["hola", "gracias", ""])
+def test_looks_like_query_false(text):
+    assert looks_like_query(text) is False
