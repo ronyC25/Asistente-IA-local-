@@ -45,6 +45,9 @@ Copy-Item .env.example .env
 .\.venv\Scripts\python.exe -m src.main --voice --debug     # diagnostico del wake word
 .\.venv\Scripts\python.exe -m src.main --list-audio        # listar microfonos
 .\.venv\Scripts\python.exe -m src.main --voice --device 2  # elegir microfono
+
+# Bot de Telegram bidireccional (escribes al bot y responde)
+.\.venv\Scripts\python.exe -m src.main --telegram
 ```
 
 ### Avatar Live2D (Fase 7)

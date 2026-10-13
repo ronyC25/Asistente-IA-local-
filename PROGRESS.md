@@ -65,7 +65,7 @@ web/index.html       # UI de chat en el navegador
 avatar/              # app Live2D + overlay Electron (Fase 7)
   index.html main.js #   escena Live2D + WebSocket + microfono + lip-sync
   electron/          #   ventana overlay transparente y click-through
-  setup_assets.ps1   #   descarga librerias + modelo Mao (no versionados)
+  setup_assets.ps1   #   descarga librerias + modelo Haru (no versionados)
 tests/               # 72 tests (pytest)
 ```
 
