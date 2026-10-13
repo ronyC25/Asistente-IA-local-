@@ -21,6 +21,29 @@ _API = "https://api.telegram.org"
 
 # Comandos que reinician la conversacion.
 _COMANDOS_RESET = {"/start", "/reset", "/nueva", "/nuevo"}
+_COMANDOS_PING = {"/ping"}
+
+# Limite de caracteres por mensaje de Telegram.
+_TG_LIMIT = 4096
+
+
+def _split_message(text: str, limit: int = _TG_LIMIT) -> list[str]:
+    """Trocea un texto largo respetando saltos de linea/espacios."""
+    text = text or ""
+    if len(text) <= limit:
+        return [text]
+    partes: list[str] = []
+    resto = text
+    while len(resto) > limit:
+        corte = resto.rfind("\n", 0, limit)
+        if corte <= 0:
+            corte = resto.rfind(" ", 0, limit)
+        if corte <= 0:
+            corte = limit
+        partes.append(resto[:corte])
+        resto = resto[corte:].lstrip("\n")
+    partes.append(resto)
+    return partes
 
 
 class TelegramBot:
@@ -53,14 +76,23 @@ class TelegramBot:
         return data.get("result", [])
 
     def _send(self, chat_id: str, text: str) -> None:
-        try:
-            httpx.post(
-                f"{_API}/bot{self.token}/sendMessage",
-                json={"chat_id": chat_id, "text": text},
-                timeout=15,
-            )
-        except httpx.HTTPError as exc:  # noqa: BLE001
-            log.warning("no se pudo enviar a Telegram: %s", exc)
+        texto = (text or "").strip() or "(sin respuesta)"
+        for parte in _split_message(texto):
+            try:
+                resp = httpx.post(
+                    f"{_API}/bot{self.token}/sendMessage",
+                    json={"chat_id": chat_id, "text": parte},
+                    timeout=15,
+                )
+                data = resp.json()
+                if not data.get("ok"):
+                    log.warning(
+                        "Telegram rechazo el mensaje: %s", data.get("description")
+                    )
+            except httpx.HTTPError as exc:  # noqa: BLE001
+                log.warning("no se pudo enviar a Telegram: %s", exc)
+            except ValueError:  # respuesta no-JSON
+                log.warning("respuesta no-JSON de Telegram al enviar")
 
     # --------------------------------------------------------- sesiones
     def _session(self, chat_id: str):
@@ -80,17 +112,22 @@ class TelegramBot:
             self._sessions.pop(chat_id, None)
             self._send(chat_id, "Nueva conversacion iniciada. En que te ayudo?")
             return
-        session = self._session(chat_id)
+        if self._es_comando(texto, _COMANDOS_PING):
+            self._send(chat_id, f"pong ({settings.model})")
+            return
         try:
+            session = self._session(chat_id)
             reply, _pending = self._agent.handle(session, texto)
+            from .brain.emotions import strip_emotions
+
+            limpio, _emociones = strip_emotions(reply or "")
+            self._send(chat_id, limpio or "(sin respuesta)")
         except Exception as exc:  # noqa: BLE001
             log.exception("error procesando mensaje de Telegram")
-            self._send(chat_id, f"Ocurrio un error: {exc}")
-            return
-        from .brain.emotions import strip_emotions
-
-        limpio, _emociones = strip_emotions(reply or "")
-        self._send(chat_id, limpio or "(sin respuesta)")
+            try:
+                self._send(chat_id, f"Ocurrio un error: {exc}")
+            except Exception:  # noqa: BLE001
+                log.exception("tampoco se pudo enviar el error a Telegram")
 
     # ----------------------------------------------------------- updates
     def handle_update(self, update: dict) -> None:
@@ -104,6 +141,7 @@ class TelegramBot:
         if self.allowed_chat and chat_id != self.allowed_chat:
             log.warning("mensaje ignorado de chat no autorizado: %s", chat_id)
             return
+        log.info("mensaje de %s: %s", chat_id, texto[:100])
         self._responder(chat_id, texto)
 
     def _prime_offset(self) -> None:
@@ -153,15 +191,29 @@ class TelegramBot:
             self._thread.join(timeout=self.poll_timeout + 5)
 
 
+def _config_logging() -> None:
+    """Registra la actividad del bot en ``data/telegram_bot.log``."""
+    from .config import ROOT
+
+    log_dir = ROOT / "data"
+    log_dir.mkdir(exist_ok=True)
+    handler = logging.FileHandler(log_dir / "telegram_bot.log", encoding="utf-8")
+    handler.setFormatter(logging.Formatter("%(asctime)s %(levelname)s %(message)s"))
+    log.setLevel(logging.INFO)
+    log.addHandler(handler)
+
+
 def run() -> None:
     """Modo dedicado: bot + scheduler hasta Ctrl+C."""
     from .scheduler import shutdown as stop_scheduler
     from .scheduler import start as start_scheduler
 
+    _config_logging()
     timeout = int(settings.telegram.get("poll_timeout", 25))
     bot = TelegramBot(poll_timeout=timeout)
     start_scheduler()
     bot.start()
+    log.info("bot de Telegram en marcha (chat=%s)", bot.allowed_chat)
     print("Bot de Telegram en marcha. Escribe a tu bot (Ctrl+C para salir).")
     try:
         while True:

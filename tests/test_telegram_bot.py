@@ -91,3 +91,37 @@ def test_prime_offset(monkeypatch):
     monkeypatch.setattr(bot, "_get", _fake_get)
     bot._prime_offset()
     assert bot._offset == 43
+
+
+def test_ping(monkeypatch):
+    bot, agent, enviados = _bot(monkeypatch)
+    bot.handle_update(
+        {"update_id": 9, "message": {"chat": {"id": 999}, "text": "/ping"}}
+    )
+    assert agent.calls == []
+    assert enviados and enviados[0][1].startswith("pong")
+
+
+def test_split_message():
+    from src.telegram_bot import _split_message
+
+    assert _split_message("corto", 4096) == ["corto"]
+    largo = "x" * 10000
+    partes = _split_message(largo, 4096)
+    assert len(partes) == 3
+    assert "".join(partes) == largo
+
+
+def test_send_verifica_error(monkeypatch):
+    from src import telegram_bot
+
+    config.settings.telegram_bot_token = "123:abc"
+    config.settings.telegram_chat_id = "999"
+    bot = TelegramBot(agent=_FakeAgent())
+
+    class _Resp:
+        def json(self):
+            return {"ok": False, "description": "bad request"}
+
+    monkeypatch.setattr(telegram_bot.httpx, "post", lambda *a, **k: _Resp())
+    bot._send("999", "hola")  # no debe lanzar aunque Telegram devuelva ok:false

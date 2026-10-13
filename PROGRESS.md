@@ -82,7 +82,15 @@ confirmacion ("si/no").
 
 ## Como arrancar
 
+> Usa siempre el Python del `.venv` (`.\.venv\Scripts\python.exe`) o los scripts
+> `start-*.ps1`. Ejecutar `python` a secas da `ModuleNotFoundError: No module named 'ollama'`.
+
 ```powershell
+# Atajos (usan el .venv automaticamente)
+.\start-web.ps1        # servidor web
+.\start-telegram.ps1   # bot de Telegram bidireccional
+.\start.ps1 -Mode web|telegram|voice|cli
+
 # CLI interactiva
 .\.venv\Scripts\python.exe -m src.main
 
@@ -130,6 +138,10 @@ Requisitos: Ollama en ejecucion con `qwen3:8b` (`ollama pull qwen3:8b`).
 - **Seguridad**: solo procesa mensajes de `TELEGRAM_CHAT_ID` (ignora el resto).
 - **Sesion persistente por chat**: la confirmacion "si/no" de acciones de escritura
   funciona entre mensajes. Comandos `/start` y `/reset` reinician la conversacion.
+- **`/ping`**: responde `pong (<modelo>)` para comprobar que el bot esta vivo.
+- **Log**: `data/telegram_bot.log` (arranque, mensajes recibidos, errores). `_send`
+  verifica la respuesta de Telegram (errores 400 ya no pasan en silencio) y trocea
+  mensajes >4096 caracteres.
 - **Aviso**: solo puede haber **un** consumidor de `getUpdates` a la vez. Mientras
   corre el bot, no usar `python -m src.tools.messaging` (descubrimiento de chat_id).
 - Depuracion: el overlay Electron abre DevTools con **F12 / Ctrl+Shift+I** o el menu

@@ -33,7 +33,19 @@ Copy-Item .env.example .env
 
 ## Uso
 
+> **Importante:** usa siempre el Python del entorno virtual (`.\.venv\Scripts\python.exe`).
+> Si ejecutas `python` a secas, puede que falten dependencias
+> (`ModuleNotFoundError: No module named 'ollama'`). Hay atajos que ya usan el venv:
+> `.\start-web.ps1`, `.\start-telegram.ps1` o `.\start.ps1 -Mode web|telegram|voice|cli`.
+
 ```powershell
+# Atajos (recomendado, usan el .venv automaticamente)
+.\start-web.ps1          # servidor web
+.\start-telegram.ps1     # bot de Telegram bidireccional
+
+# Equivalente explicito
+.\.venv\Scripts\python.exe -m src.main --web
+
 # Chat por texto (CLI)
 .\.venv\Scripts\python.exe -m src.main
 
@@ -92,6 +104,13 @@ Las acciones que modifican datos piden confirmacion (`si` / `no`).
    .\.venv\Scripts\python.exe -m src.tools.messaging
    ```
    Copia el `chat_id` en `TELEGRAM_CHAT_ID`.
+3. Para **recibir** mensajes, arranca el bot y deja la terminal abierta:
+   ```powershell
+   .\start-telegram.ps1
+   ```
+   Solo responde al chat de `TELEGRAM_CHAT_ID`. El comando `/ping` responde `pong`
+   para comprobar que esta vivo. Aviso: **un solo** consumidor de `getUpdates` a la vez
+   (no usar `src.tools.messaging` mientras el bot corre). Log en `data/telegram_bot.log`.
 
 ### Email (Gmail)
 Rellena en `.env`: `EMAIL_ADDRESS`, `EMAIL_PASSWORD` (contrasena de aplicacion),
