@@ -1,7 +1,16 @@
 """Definiciones (JSON Schema) de las herramientas disponibles."""
 from __future__ import annotations
 
-from ..tools import calendar, email_tool, messaging, notify, reminders, tasks
+from ..tools import (
+    calendar,
+    email_tool,
+    lists,
+    messaging,
+    notes,
+    notify,
+    reminders,
+    tasks,
+)
 from .registry import READ, WRITE
 
 
@@ -38,10 +47,41 @@ def _describe_eliminar(a: dict) -> str:
 
 def _describe_crear_recordatorio(a: dict) -> str:
     canal = a.get("canal", "windows")
+    rec = a.get("recurrencia") or "ninguna"
+    sufijo = "" if rec in ("ninguna", "") else f" (repite: {rec})"
     return (
         f"Crear el recordatorio «{a.get('texto', '?')}» para {a.get('cuando', '?')} "
-        f"(aviso por {canal})"
+        f"(aviso por {canal}){sufijo}"
     )
+
+
+def _describe_gestionar_notas(a: dict) -> str:
+    accion = str(a.get("accion", "?")).lower()
+    ref = a.get("id") if a.get("id") is not None else a.get("titulo")
+    if accion in ("crear", "anadir", "agregar", "nueva"):
+        cuerpo = str(a.get("contenido") or "")[:60]
+        return f"Crear una nota «{a.get('titulo') or cuerpo}»"
+    if accion in ("editar", "actualizar", "modificar"):
+        return f"Editar la nota {ref!r}"
+    if accion in ("eliminar", "borrar", "borra"):
+        return f"Eliminar la nota {ref!r}"
+    return f"Notas: {accion}"
+
+
+def _describe_gestionar_listas(a: dict) -> str:
+    accion = str(a.get("accion", "?")).lower()
+    ref = a.get("id") if a.get("id") is not None else a.get("nombre")
+    if accion in ("crear", "nueva", "crea"):
+        return f"Crear la lista «{a.get('nombre', '?')}»"
+    if accion in ("agregar", "anadir", "add"):
+        return f"Agregar «{a.get('texto', '?')}» a la lista {ref}"
+    if accion in ("marcar", "desmarcar"):
+        return f"{accion.capitalize()} el item {a.get('item_id')}"
+    if accion in ("eliminar_item", "borrar_item"):
+        return f"Eliminar el item {a.get('item_id')}"
+    if accion in ("eliminar_lista", "borrar_lista"):
+        return f"Eliminar la lista {ref}"
+    return f"Listas: {accion}"
 
 
 def _describe_cancelar_recordatorio(a: dict) -> str:
@@ -204,7 +244,8 @@ def build_tools() -> list[dict]:
             "name": "crear_recordatorio",
             "description": (
                 "Programa un recordatorio que se avisara en la fecha/hora indicada. "
-                "Usa 'cuando' en formato ISO (YYYY-MM-DD HH:MM) y en el futuro."
+                "Usa 'cuando' en formato ISO (YYYY-MM-DD HH:MM) y en el futuro. "
+                "Para repeticiones, indica 'recurrencia'."
             ),
             "parameters": {
                 "type": "object",
@@ -221,6 +262,11 @@ def build_tools() -> list[dict]:
                         "type": "string",
                         "enum": ["windows", "telegram"],
                         "description": "Como enviar el aviso (por defecto windows)",
+                    },
+                    "recurrencia": {
+                        "type": "string",
+                        "enum": ["ninguna", "diaria", "semanal", "mensual"],
+                        "description": "Repeticion (por defecto ninguna)",
                     },
                 },
                 "required": ["texto", "cuando"],
@@ -424,5 +470,111 @@ def build_tools() -> list[dict]:
             "func": calendar.exportar_ics,
             "kind": WRITE,
             "describe": _describe_exportar_ics,
+        },
+        {
+            "name": "consultar_notas",
+            "description": (
+                "Lee notas de texto libre. accion 'listar' (recientes) o 'buscar' "
+                "(por 'texto')."
+            ),
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "accion": {
+                        "type": "string",
+                        "enum": ["listar", "buscar"],
+                        "description": "listar (por defecto) o buscar",
+                    },
+                    "texto": {
+                        "type": "string",
+                        "description": "Texto a buscar (accion buscar)",
+                    },
+                    "limite": {"type": "integer", "description": "Maximo de resultados"},
+                },
+            },
+            "func": notes.consultar_notas,
+            "kind": READ,
+        },
+        {
+            "name": "gestionar_notas",
+            "description": (
+                "Crea, edita o elimina notas de texto libre. accion 'crear' (titulo, "
+                "contenido), 'editar' (id + campos) o 'eliminar' (id)."
+            ),
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "accion": {
+                        "type": "string",
+                        "enum": ["crear", "editar", "eliminar"],
+                    },
+                    "id": {
+                        "type": "integer",
+                        "description": "Id de la nota (editar/eliminar)",
+                    },
+                    "titulo": {"type": "string"},
+                    "contenido": {"type": "string"},
+                },
+                "required": ["accion"],
+            },
+            "func": notes.gestionar_notas,
+            "kind": WRITE,
+            "describe": _describe_gestionar_notas,
+        },
+        {
+            "name": "consultar_listas",
+            "description": (
+                "Lee listas/checklists. accion 'listar' (todas) o 'ver' (items de una "
+                "lista por 'id' o 'nombre')."
+            ),
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "accion": {"type": "string", "enum": ["listar", "ver"]},
+                    "id": {"type": "integer"},
+                    "nombre": {"type": "string"},
+                },
+            },
+            "func": lists.consultar_listas,
+            "kind": READ,
+        },
+        {
+            "name": "gestionar_listas",
+            "description": (
+                "Crea y modifica listas/checklists. accion: crear (nombre), agregar "
+                "(lista + texto), marcar/desmarcar (item_id), eliminar_item (item_id) "
+                "o eliminar_lista (id/nombre)."
+            ),
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "accion": {
+                        "type": "string",
+                        "enum": [
+                            "crear",
+                            "agregar",
+                            "marcar",
+                            "desmarcar",
+                            "eliminar_item",
+                            "eliminar_lista",
+                        ],
+                    },
+                    "id": {"type": "integer", "description": "Id de la lista"},
+                    "nombre": {"type": "string", "description": "Nombre de la lista"},
+                    "texto": {
+                        "type": "string",
+                        "description": "Texto del item a agregar",
+                    },
+                    "item_id": {"type": "integer", "description": "Id del item"},
+                    "hecho": {
+                        "type": "boolean",
+                        "description": "Marcar como hecho (por defecto true)",
+                    },
+                },
+                "required": ["accion"],
+            },
+            "func": lists.gestionar_listas,
+            "kind": WRITE,
+            "describe": _describe_gestionar_listas,
         },
     ]

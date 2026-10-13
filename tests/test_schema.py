@@ -19,6 +19,10 @@ def test_tools_esperadas_presentes():
         "enviar_telegram",
         "leer_email",
         "enviar_email",
+        "consultar_notas",
+        "gestionar_notas",
+        "consultar_listas",
+        "gestionar_listas",
     }
     assert esperadas <= names
 
@@ -29,3 +33,7 @@ def test_flags_lectura_escritura():
     assert tools["enviar_telegram"]["kind"] == "write"
     assert tools["leer_email"]["kind"] == "read"
     assert tools["listar_tareas"]["kind"] == "read"
+    assert tools["gestionar_notas"]["kind"] == "write"
+    assert tools["consultar_notas"]["kind"] == "read"
+    assert tools["gestionar_listas"]["kind"] == "write"
+    assert tools["consultar_listas"]["kind"] == "read"

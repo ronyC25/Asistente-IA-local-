@@ -22,7 +22,7 @@ class Settings:
 
         self.model = os.getenv("ASSISTANT_MODEL") or data.get("model", "qwen3:8b")
         self.temperature = float(data.get("temperature", 0.25))
-        self.num_ctx = int(data.get("num_ctx", 4096))
+        self.num_ctx = int(data.get("num_ctx", 6144))
         self.num_predict = int(data.get("num_predict", 400))
         self.keep_alive = data.get("keep_alive", "30m")
         self.history_limit = int(data.get("history_limit", 16))

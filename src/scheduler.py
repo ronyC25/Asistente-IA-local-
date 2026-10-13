@@ -29,8 +29,15 @@ def check_due() -> None:
     for r in reminders.vencidos():
         try:
             _dispatch(r["canal"], r["texto"])
-            reminders.marcar_enviado(r["id"])
-            log.info("recordatorio enviado id=%s canal=%s", r["id"], r["canal"])
+            nuevo = reminders.siguiente_ocurrencia(r["cuando"], r.get("recurrencia"))
+            if nuevo:
+                reminders.reprogramar(r["id"], nuevo)
+                log.info(
+                    "recordatorio %s enviado y reprogramado para %s", r["id"], nuevo
+                )
+            else:
+                reminders.marcar_enviado(r["id"])
+                log.info("recordatorio enviado id=%s canal=%s", r["id"], r["canal"])
         except Exception as exc:  # noqa: BLE001
             reminders.marcar_error(r["id"])
             log.warning("fallo el recordatorio id=%s: %s", r["id"], exc)

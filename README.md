@@ -91,7 +91,10 @@ Escribe (o di) cosas como:
 - "Anade una tarea: comprar leche, prioridad alta"
 - "Que tareas pendientes tengo?"
 - "Recuerdame llamar al banco manana a las 9"
+- "Recuerdame tomar agua todos los dias a las 9"        # recordatorio recurrente
 - "Agenda una reunion el martes a las 10 en la oficina"
+- "Crea una nota: ideas para el proyecto"
+- "Crea una lista de la compra y anade leche y pan"
 - "Mandame la lista de recordatorios por Telegram"
 - "Lee mis ultimos 3 correos"
 

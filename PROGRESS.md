@@ -27,6 +27,7 @@ recordatorios, calendario, notificaciones, Telegram y correo, con interfaz de
 | 6 | UI web + pulido | Hecho (UI de chat web) |
 | 7 | Avatar Live2D + overlay Electron + lip-sync | Hecho |
 | Extra | Bot Telegram bidireccional | Hecho (modo `--telegram`) |
+| Extra | Productividad: notas, listas, recordatorios recurrentes | Hecho |
 | Extra | Google Calendar API (OAuth) | Pendiente |
 | Extra | Wake word en el navegador | Pendiente (cambio futuro) |
 
@@ -45,12 +46,14 @@ src/
   brain/
     agent.py         # loop de tool-calling + confirmacion + guardarrailes
     prompts.py       # system prompt
-    schema.py        # definicion JSON de las 18 herramientas
+    schema.py        # definicion JSON de las 22 herramientas
     registry.py      # registro de tools (read/write)
     confirm.py       # clasificacion si/no + deteccion de intencion
   tools/
     tasks.py         # tareas (CRUD)
-    reminders.py     # recordatorios (CRUD)
+    reminders.py     # recordatorios (CRUD + recurrencia)
+    notes.py         # notas (consultar/gestionar)
+    lists.py         # listas/checklists (consultar/gestionar)
     notify.py        # notificaciones Windows (toast)
     messaging.py     # Telegram
     email_tool.py    # email IMAP/SMTP
@@ -66,19 +69,23 @@ avatar/              # app Live2D + overlay Electron (Fase 7)
   index.html main.js #   escena Live2D + WebSocket + microfono + lip-sync
   electron/          #   ventana overlay transparente y click-through
   setup_assets.ps1   #   descarga librerias + modelo Haru (no versionados)
-tests/               # 72 tests (pytest)
+start*.ps1           # lanzadores (venv + modos + start-all)
+tests/               # 112 tests (pytest)
 ```
 
-## Herramientas del agente (18)
+## Herramientas del agente (22)
 
 - **Tareas**: `crear_tarea`, `listar_tareas`, `completar_tarea`, `editar_tarea`, `eliminar_tarea`
-- **Recordatorios**: `crear_recordatorio`, `listar_recordatorios`, `cancelar_recordatorio`
+- **Recordatorios**: `crear_recordatorio` (con `recurrencia`), `listar_recordatorios`, `cancelar_recordatorio`
+- **Notas**: `consultar_notas` (read), `gestionar_notas` (write)
+- **Listas/checklists**: `consultar_listas` (read), `gestionar_listas` (write)
 - **Notif/Mensajeria/Email**: `enviar_notificacion_windows`, `enviar_telegram`, `leer_email`, `enviar_email`
 - **Calendario**: `crear_evento`, `listar_eventos`, `editar_evento`, `cancelar_evento`, `exportar_ics`
 - **Sistema**: `fecha_hora_actual`
 
 Regla: las de **lectura** se ejecutan al instante; las de **escritura** piden
-confirmacion ("si/no").
+confirmacion ("si/no"). Las tools de notas/listas estan **agrupadas** (un grupo de
+consulta y otro de gestion) para no inflar el prompt de herramientas.
 
 ## Como arrancar
 
@@ -201,7 +208,7 @@ aplicacion** (requiere verificacion en 2 pasos).
   acciones de escritura tras una lectura (ya implementado en `agent.py`).
 - **Rendimiento LLM**: qwen3 con *thinking* ON generaba ~10x mas tokens y ~18x mas
   tiempo (medido: 7.17s/103 tok vs 0.40s/10 tok). Ahora se llama con `think=False`,
-  `num_predict: 400`, `keep_alive: 30m`, `num_ctx: 4096` e `history_limit: 16`
+  `num_predict: 400`, `keep_alive: 30m`, `num_ctx: 6144` e `history_limit: 16`
   (recorte de historial por sesion). Todo configurable en `settings.yaml`.
 - **Guardarrail de consultas**: si el modelo responde una CONSULTA (tareas,
   recordatorios, calendario, correo) sin llamar a la herramienta de lectura, el

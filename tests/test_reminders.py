@@ -57,3 +57,41 @@ def test_vencidos_y_marcar_enviado():
     reminders.marcar_enviado(r["id"])
     assert reminders.listar_recordatorios("enviados")["total"] == 1
     assert reminders.vencidos(fut) == []
+
+
+def test_recurrencia_diaria():
+    r = reminders.crear_recordatorio("Tomar agua", _futuro(), recurrencia="diaria")
+    assert r["recurrencia"] == "diaria"
+    nxt = reminders.siguiente_ocurrencia(r["cuando"], "diaria")
+    assert nxt is not None and nxt > r["cuando"]
+
+
+def test_recurrencia_invalida():
+    with pytest.raises(ValueError):
+        reminders.crear_recordatorio("X", _futuro(), recurrencia="cada_luna")
+
+
+def test_siguiente_ocurrencia_ninguna():
+    assert reminders.siguiente_ocurrencia(_futuro(), "ninguna") is None
+    assert reminders.siguiente_ocurrencia(_futuro(), None) is None
+
+
+def test_reprogramar_recurrente():
+    r = reminders.crear_recordatorio("X", _futuro(1), recurrencia="semanal")
+    nuevo = reminders.siguiente_ocurrencia(r["cuando"], "semanal")
+    r2 = reminders.reprogramar(r["id"], nuevo)
+    assert r2["estado"] == "pendiente"
+    assert r2["cuando"] == nuevo
+
+
+def test_scheduler_reprograma_recurrente(monkeypatch):
+    from src import scheduler
+
+    r = reminders.crear_recordatorio("Y", _futuro(), recurrencia="diaria")
+    monkeypatch.setattr(reminders, "vencidos", lambda *a, **k: [dict(r)])
+    monkeypatch.setattr(scheduler, "_dispatch", lambda canal, texto: {"ok": True})
+    scheduler.check_due()
+    actualizado = reminders.listar_recordatorios("pendientes")["recordatorios"][0]
+    assert actualizado["id"] == r["id"]
+    assert actualizado["cuando"] != r["cuando"]
+    assert actualizado["estado"] == "pendiente"
