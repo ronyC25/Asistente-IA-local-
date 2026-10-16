@@ -4,6 +4,7 @@ import pytest
 
 from src.brain.confirm import (
     classify_confirmation,
+    dominio_lectura,
     looks_like_action,
     looks_like_query,
     periodo_de_texto,
@@ -114,3 +115,20 @@ def test_quiere_historial_cancelados_false():
 )
 def test_periodo_de_texto(text, esperado):
     assert periodo_de_texto(text) == esperado
+
+
+@pytest.mark.parametrize(
+    "text,esperado",
+    [
+        ("una lista de las notificaciones en la base de datos", "recordatorios"),
+        ("que recordatorios tengo", "recordatorios"),
+        ("dime las tareas", "tareas"),
+        ("muestrame las notas", "notas"),
+        ("que eventos hay", "eventos"),
+        ("leeme los correos", "email"),
+        ("hola que tal", None),
+        ("crea una tarea comprar leche", "tareas"),
+    ],
+)
+def test_dominio_lectura(text, esperado):
+    assert dominio_lectura(text) == esperado

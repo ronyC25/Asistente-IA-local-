@@ -9,6 +9,7 @@ import ollama
 from .confirm import (
     build_proposal,
     classify_confirmation,
+    dominio_lectura,
     looks_like_action,
     looks_like_query,
     periodo_de_texto,
@@ -36,6 +37,31 @@ def _norm_args(args: Any) -> dict:
 
 # Herramientas de listado que aceptan el parametro 'periodo' (rango relativo).
 _TOOLS_CON_PERIODO = ("listar_eventos", "listar_tareas", "listar_recordatorios")
+
+# Dominio de datos -> herramienta de lectura por defecto (fallback determinista).
+_DOMINIO_TOOL = {
+    "tareas": "listar_tareas",
+    "recordatorios": "listar_recordatorios",
+    "notas": "consultar_notas",
+    "listas": "consultar_listas",
+    "eventos": "listar_eventos",
+    "email": "leer_email",
+}
+
+
+def _args_dominio(dominio: str, user_text: str | None) -> dict:
+    """Argumentos por defecto para la lectura forzada de un dominio."""
+    t = (user_text or "").lower()
+    if dominio == "tareas":
+        if any(w in t for w in ("todas", "todos", "base de datos", "completad")):
+            return {"estado": "todas"}
+        return {}
+    if dominio == "recordatorios":
+        est = "historial" if quiere_historial_recordatorios(user_text or "") else "pendientes"
+        return {"estado": est}
+    if dominio in ("notas", "listas"):
+        return {"accion": "listar"}
+    return {}
 
 
 def partition_calls(
@@ -81,17 +107,18 @@ class Agent:
     def new_session(self) -> Session:
         return Session(self.system_prompt)
 
-    def _call(self, session: Session, think: bool = False) -> dict:
+    def _call(self, session: Session, think: bool = False, with_tools: bool = True) -> dict:
         options: dict = {"temperature": self.temperature, "num_ctx": self.num_ctx}
         if self.num_predict:
             options["num_predict"] = self.num_predict
         kwargs: dict = {
             "model": self.model,
             "messages": session.messages,
-            "tools": self.registry.schemas(),
             "options": options,
             "think": think,
         }
+        if with_tools:
+            kwargs["tools"] = self.registry.schemas()
         if self.keep_alive is not None:
             kwargs["keep_alive"] = self.keep_alive
         return self.client.chat(**kwargs)
@@ -124,6 +151,15 @@ class Agent:
                 args.pop("desde", None)
                 args.pop("hasta", None)
             ajustado.append((name, args))
+        # Inyeccion determinista: si es una consulta de un dominio claro y el
+        # modelo no llamo la herramienta de lectura de ese dominio, la anadimos
+        # (evita que confunda p. ej. 'notificaciones' con notas o no llame nada).
+        if looks_like_query(user_text) and not looks_like_action(user_text):
+            dominio = dominio_lectura(user_text)
+            if dominio:
+                tool_name = _DOMINIO_TOOL[dominio]
+                if tool_name not in {n for n, _ in ajustado}:
+                    ajustado.append((tool_name, _args_dominio(dominio, user_text)))
         return ajustado
 
     def _trim(self, session: Session) -> None:
@@ -194,12 +230,12 @@ class Agent:
     )
 
     _NUDGE_READ = (
-        "IMPORTANTE: el usuario te pidio CONSULTAR datos (tareas, recordatorios, "
-        "calendario/eventos o correos) y NO llamaste ninguna herramienta de lectura, "
-        "solo respondiste con texto. Llama AHORA a la herramienta de lectura adecuada "
-        "(listar_tareas, listar_recordatorios, listar_eventos o leer_email) y responde "
-        "con los datos reales que devuelva. No digas que estas revisando ni respondas "
-        "de memoria."
+        "IMPORTANTE: el usuario te pidio CONSULTAR datos y NO llamaste ninguna "
+        "herramienta de lectura. Tienes acceso a TODOS los datos locales. Llama "
+        "AHORA a la herramienta adecuada: listar_tareas, listar_recordatorios "
+        "(= 'notificaciones'/'avisos'), consultar_notas, consultar_listas, "
+        "listar_eventos o leer_email. Responde con los datos reales que devuelva. "
+        "Nunca digas que no tienes acceso."
     )
 
     def _run_loop(
@@ -211,6 +247,7 @@ class Agent:
     ) -> tuple[str, dict | None]:
         saw_write = False
         saw_tool = False
+        seen_reads: set = set()
         for _ in range(self.max_iters):
             response = self._call(session, think=think)
             message = response.get("message", {}) or {}
@@ -237,6 +274,34 @@ class Agent:
                         stage=stage + 1,
                         think=stage == 1,
                     )
+                # Fallback determinista: si tras los reintentos el modelo no llamo
+                # ninguna herramienta pero la consulta es de un dominio claro,
+                # ejecutamos la lectura nosotros y le pedimos que la resuma.
+                if (
+                    user_text
+                    and stage >= 1
+                    and not saw_tool
+                    and looks_like_query(user_text)
+                    and not looks_like_action(user_text)
+                ):
+                    dominio = dominio_lectura(user_text)
+                    if dominio:
+                        name = _DOMINIO_TOOL[dominio]
+                        args = _args_dominio(dominio, user_text)
+                        result = self._execute(name, args)
+                        session.messages.append(
+                            {
+                                "role": "system",
+                                "content": (
+                                    "Datos reales de la consulta (JSON): "
+                                    + json.dumps(result, ensure_ascii=False)
+                                    + ". Resume en lenguaje natural para el usuario."
+                                ),
+                            }
+                        )
+                        return self._run_loop(
+                            session, user_text=None, stage=stage + 1, think=False
+                        )
                 session.messages.append({"role": "assistant", "content": content})
                 return content, None
 
@@ -260,11 +325,36 @@ class Agent:
                 session.pending = writes
                 return build_proposal(writes, self.registry), {"type": "confirm"}
 
+            # Cortador de bucle: si el modelo vuelve a pedir SOLO lecturas que ya
+            # ejecutamos en este turno, dejamos de llamar herramientas y forzamos
+            # un resumen (evita "demasiados pasos" en sesiones largas).
+            nuevas = [
+                (n, a)
+                for (n, a) in reads
+                if (n, json.dumps(a, sort_keys=True)) not in seen_reads
+            ]
+            if reads and not nuevas and not writes:
+                session.messages.append(
+                    {
+                        "role": "system",
+                        "content": (
+                            "Ya tienes los datos de esas herramientas. Responde "
+                            "ahora al usuario en lenguaje natural, sin volver a "
+                            "llamar ninguna herramienta."
+                        ),
+                    }
+                )
+                resp = self._call(session, think=False, with_tools=False)
+                content = (resp.get("message") or {}).get("content") or ""
+                session.messages.append({"role": "assistant", "content": content})
+                return content, None
+
             # Primero ejecutamos las lecturas. Si ademas hay escrituras en el
             # mismo turno, no las ejecutamos aun: le pedimos al modelo que las
             # reintente viendo ya los datos reales (evita enviar/crear con datos
             # incompletos).
             for name, args in reads:
+                seen_reads.add((name, json.dumps(args, sort_keys=True)))
                 result = self._execute(name, args)
                 session.messages.append(
                     {"role": "tool", "content": json.dumps(result, ensure_ascii=False)}

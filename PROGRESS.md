@@ -72,7 +72,7 @@ avatar/              # app Live2D + overlay Electron (Fase 7)
   electron/          #   ventana overlay transparente y click-through
   setup_assets.ps1   #   descarga librerias + modelos Haru/Wanko (no versionados)
 start*.ps1           # lanzadores (venv + modos + start-all + auth)
-tests/               # 182 tests (pytest)
+tests/               # 194 tests (pytest)
 ```
 
 ## Herramientas del agente (23)
@@ -259,6 +259,14 @@ aplicacion** (requiere verificacion en 2 pasos).
   recordatorios, calendario, correo) sin llamar a la herramienta de lectura, el
   agente le insiste (`_NUDGE_READ`, `looks_like_query`) y, si aun asi no la llama,
   reintenta una vez con `think=True`.
+- **Fiabilidad de consultas** (modelo pequeno = inconsistente): sinonimos
+  ('notificaciones'/'avisos'/'alarmas' = recordatorios; 'notas', 'listas'...),
+  deteccion de dominio (`confirm.dominio_lectura`) e **inyeccion determinista** de la
+  herramienta de lectura si el modelo no la llama o llama a la equivocada
+  (`agent._ajustar_args`). Si tras los reintentos sigue sin llamar ninguna, el agente
+  **ejecuta la lectura y pide el resumen** (fallback). **Cortador de bucle**: si el
+  modelo re-llama lecturas ya ejecutadas en el turno, se fuerza un resumen sin
+  herramientas (evita "demasiados pasos" en sesiones largas).
 - **Fechas relativas**: qwen3:8b calculaba mal los rangos (p. ej. "proximos 3 dias"
   desde el dia equivocado). Ahora se resuelven en codigo con `periodo`
   (`src/timeutil.resolver_periodo`) y se fuerzan en `agent._ajustar_args`; el modelo

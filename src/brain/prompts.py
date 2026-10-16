@@ -72,5 +72,12 @@ listado (hoy, manana, pasado_manana, fin_de_semana, esta_semana, semana_que_vien
 proximos_dias con 'dias', este_mes, o un dia como 'viernes'). NO calcules tu las \
 fechas: deja que la herramienta las resuelva. Usa 'desde'/'hasta' solo si el usuario \
 da fechas explicitas (p. ej. "el 20 de octubre").
+16. Tienes acceso a TODOS los datos locales (tareas, notas, listas, recordatorios, \
+eventos, correos) mediante las herramientas; NUNCA digas que no tienes acceso ni \
+respondas de memoria. "Notificaciones", "avisos" y "alarmas" se refieren a los \
+RECORDATORIOS (usa listar_recordatorios); "notas" -> consultar_notas; "listas"/\
+"checklists" -> consultar_listas. Si el usuario pide "una lista de X" o "todos los X", \
+usa el estado que incluya todo lo que tenga sentido (p. ej. listar_recordatorios con \
+estado historial o todos).
 
 Se breve: responde en una o dos frases salvo que se pida detalle."""

@@ -215,12 +215,14 @@ class _NarratingClient:
 def test_reintento_con_thinking():
     agent = Agent(_registry(), model="dummy", system_prompt="sys")
     agent.client = _NarratingClient()
+    agent._execute = lambda name, args: {"ok": True, "resultado": {"total": 0}}
     s = agent.new_session()
     reply, info = agent.handle(s, "revisa las tareas")
     assert info is None
     assert reply == "Estoy revisando..."
-    # 1er intento y nudge sin thinking; 2º reintento con thinking.
-    assert agent.client.thinks == [False, False, True]
+    # 1er intento y nudge sin thinking; 2º reintento con thinking; luego el
+    # fallback determinista ejecuta la lectura (otra llamada, sin thinking).
+    assert agent.client.thinks == [False, False, True, False]
 
 
 def test_ajustar_args_historial():
@@ -279,3 +281,58 @@ def test_ajustar_args_periodo_en_tareas():
     assert out == [
         ("listar_tareas", {"estado": "pendientes", "periodo": "esta_semana"})
     ]
+
+
+def test_ajustar_args_inyecta_lectura_del_dominio():
+    agent = Agent(_registry(), model="dummy", system_prompt="sys")
+    # El modelo se equivoca: llama a notas cuando piden "notificaciones".
+    parsed = [("consultar_notas", {"accion": "listar"})]
+    out = agent._ajustar_args(
+        parsed, "una lista de las notificaciones en la base de datos"
+    )
+    names = [n for n, _ in out]
+    assert "listar_recordatorios" in names
+    assert dict(out)["listar_recordatorios"].get("estado") == "historial"
+
+
+def test_ajustar_args_no_inyecta_en_acciones():
+    agent = Agent(_registry(), model="dummy", system_prompt="sys")
+    parsed = [("crear_tarea", {"titulo": "comprar leche"})]
+    out = agent._ajustar_args(parsed, "crea una tarea: comprar leche")
+    assert [n for n, _ in out] == ["crear_tarea"]
+
+
+def test_fallback_lectura_si_el_modelo_no_llama_tool():
+    agent = Agent(_registry(), model="dummy", system_prompt="sys")
+    agent.client = _FakeClient()  # siempre responde texto, sin tool_calls
+    llamadas: list[str] = []
+
+    def fake_exec(name, args):
+        llamadas.append(name)
+        return {"ok": True, "resultado": {"total": 0}}
+
+    agent._execute = fake_exec
+    s = agent.new_session()
+    reply, info = agent.handle(
+        s, "una lista de las notificaciones en la base de datos"
+    )
+    assert info is None
+    assert "listar_recordatorios" in llamadas
+
+
+def test_cortador_de_bucle():
+    agent = Agent(_registry(), model="dummy", system_prompt="sys")
+    tool_call = {
+        "message": {
+            "role": "assistant",
+            "content": "",
+            "tool_calls": [{"function": {"name": "listar_tareas", "arguments": {}}}],
+        }
+    }
+    final = {"message": {"role": "assistant", "content": "Tienes 0 tareas."}}
+    agent.client = _ScriptClient([tool_call, tool_call, final])
+    agent._execute = lambda name, args: {"ok": True, "resultado": {"total": 0}}
+    s = agent.new_session()
+    reply, info = agent.handle(s, "que tareas tengo")
+    assert reply == "Tienes 0 tareas."
+    assert info is None

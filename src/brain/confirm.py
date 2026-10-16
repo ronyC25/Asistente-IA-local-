@@ -129,6 +129,18 @@ _QUERY_WORDS = {
     "correos",
     "correo",
     "emails",
+    "nota",
+    "notas",
+    "apunte",
+    "apuntes",
+    "notificacion",
+    "notificaciones",
+    "aviso",
+    "avisos",
+    "alarma",
+    "alarmas",
+    "checklist",
+    "checklists",
     "hoy",
     "manana",
 }
@@ -141,6 +153,52 @@ def looks_like_query(text: str) -> bool:
         return False
     palabras = set(t.split())
     return bool(palabras & _QUERY_WORDS)
+
+
+# Dominio de datos -> palabras clave (sustantivos, sin ambiguedad de verbos).
+_DOMINIO_KEYWORDS = (
+    (
+        "recordatorios",
+        (
+            "notificacion",
+            "notificaciones",
+            "recordatorio",
+            "recordatorios",
+            "aviso",
+            "avisos",
+            "alarma",
+            "alarmas",
+        ),
+    ),
+    ("tareas", ("tarea", "tareas")),
+    ("notas", ("nota", "notas", "apunte", "apuntes")),
+    (
+        "listas",
+        ("checklist", "checklists", "lista de la compra", "lista de compras"),
+    ),
+    (
+        "eventos",
+        ("evento", "eventos", "calendario", "agenda", "cita", "citas", "reunion", "reuniones"),
+    ),
+    ("email", ("correo", "correos", "email", "emails")),
+)
+
+
+def dominio_lectura(text: str) -> str | None:
+    """Detecta el dominio de datos de una consulta (p. ej. 'notificaciones').
+
+    Devuelve una clave de dominio ('tareas', 'recordatorios', 'notas', 'listas',
+    'eventos', 'email') o None. 'notificaciones' cuenta como recordatorios.
+    """
+    t = _norm(text)
+    if not t:
+        return None
+    palabras = set(t.split())
+    for dominio, claves in _DOMINIO_KEYWORDS:
+        for k in claves:
+            if (" " in k and k in t) or (" " not in k and k in palabras):
+                return dominio
+    return None
 
 
 _HISTORIAL_WORDS = {
