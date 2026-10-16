@@ -49,6 +49,8 @@ const startBox = $("start");
 const startBtn = $("startBtn");
 const modelSel = $("modelSel");
 const grip = $("grip");
+const bar = $("bar");
+const expandBtn = $("expand");
 
 let app, model, currentModelName = null;
 let mouthIds = ["ParamMouthOpenY"];
@@ -64,7 +66,31 @@ function fail(step, err) {
   const name = err && err.name ? err.name + ": " : "";
   const msg = err && err.message ? err.message : String(err);
   console.error(`[avatar] fallo en ${step}:`, err);
-  subtitle.textContent = `Error en ${step}: ${name}${msg}`;
+  setStatus(`Error en ${step}: ${name}${msg}`);
+}
+
+// ---------------------------------------------------------------- Mensaje (expandir/ocultar)
+function collapseMessage() {
+  bar.classList.remove("expanded");
+  expandBtn.textContent = "Ver todo";
+}
+
+function updateExpandButton() {
+  const overflow = subtitle.scrollHeight > subtitle.clientHeight + 1;
+  const expanded = bar.classList.contains("expanded");
+  expandBtn.style.display = overflow || expanded ? "inline-block" : "none";
+}
+
+function setSubtitle(html) {
+  subtitle.innerHTML = html;
+  collapseMessage();
+  updateExpandButton();
+}
+
+function setStatus(text) {
+  subtitle.textContent = text;
+  collapseMessage();
+  updateExpandButton();
 }
 
 // ---------------------------------------------------------------- Config
@@ -305,14 +331,13 @@ function connect() {
   ws.onopen = () => {
     wsReady = true;
     wsFails = 0;
-    if (!started) subtitle.textContent = 'Conectado. Di "hey jarvis" o escribe abajo.';
+    if (!started) setStatus('Conectado. Di "hey jarvis" o escribe abajo.');
   };
   ws.onclose = () => {
     wsReady = false;
     wsFails++;
     if (wsFails >= 2 && !started) {
-      subtitle.textContent =
-        "Sin conexion con el servidor. Arranca el backend (start-web.ps1 o --web).";
+      setStatus("Sin conexion con el servidor. Arranca el backend (start-web.ps1 o --web).");
     }
     setTimeout(connect, 2500);
   };
@@ -328,16 +353,16 @@ function connect() {
 function handleMessage(msg) {
   switch (msg.type) {
     case "ready":
-      subtitle.textContent = `Listo. Di "hey jarvis" o escribe abajo.`;
+      setStatus(`Listo. Di "hey jarvis" o escribe abajo.`);
       break;
     case "state":
       setState(msg.value);
       break;
     case "you":
-      subtitle.innerHTML = `<span class="who">Tu:</span> ${escapeHtml(msg.text)}`;
+      setSubtitle(`<span class="who">Tu:</span> ${escapeHtml(msg.text)}`);
       break;
     case "reply":
-      subtitle.innerHTML = `<span class="who">Jarvis:</span> ${escapeHtml(msg.text)}`;
+      setSubtitle(`<span class="who">Jarvis:</span> ${escapeHtml(msg.text)}`);
       break;
     case "expression":
       setExpression(msg.value);
@@ -346,7 +371,7 @@ function handleMessage(msg) {
       confirmBox.style.display = msg.active ? "flex" : "none";
       break;
     case "error":
-      subtitle.textContent = "Error: " + msg.message;
+      setStatus("Error: " + msg.message);
       break;
   }
 }
@@ -379,6 +404,12 @@ micBtn.addEventListener("click", () => {
   micBtn.textContent = micEnabled ? "Mic ON" : "Mic OFF";
 });
 modelSel.addEventListener("change", () => applyModel(modelSel.value));
+expandBtn.addEventListener("click", () => {
+  const expanded = bar.classList.toggle("expanded");
+  expandBtn.textContent = expanded ? "Ocultar" : "Ver todo";
+  if (expanded) subtitle.scrollTop = 0;
+  updateExpandButton();
+});
 
 window.addEventListener("pointermove", (e) => {
   if (model && typeof model.focus === "function") model.focus(e.clientX, e.clientY);

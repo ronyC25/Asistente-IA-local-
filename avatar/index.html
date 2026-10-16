@@ -22,8 +22,13 @@
       border: 1px solid #2a3a63; border-radius: 12px;
       padding: 8px 10px; backdrop-filter: blur(8px);
       display: flex; flex-direction: column; gap: 6px;
+      transition: height .18s ease;
     }
-    #subtitle { flex: 1; font-size: 13px; line-height: 1.35; overflow-y: auto; white-space: pre-wrap; }
+    #bar.expanded { height: 60vh; }
+    #subtitle {
+      flex: 1; font-size: 13px; line-height: 1.35; overflow-y: auto;
+      white-space: pre-wrap; user-select: text; -webkit-user-select: text;
+    }
     #subtitle .who { color: var(--accent2); font-weight: 600; }
     #row, #row2 { display: flex; gap: 6px; align-items: center; }
     #input {
@@ -66,6 +71,7 @@
       border-radius: 10px; padding: 8px 10px; font-size: 13px; outline: none;
     }
     #modelLabel { font-size: 13px; color: #8b97b3; }
+    #expand { display: none; }
     #dot { width: 9px; height: 9px; border-radius: 50%; background: #6b7899; }
     #dot.idle { background: #6b7899; }
     #dot.listening { background: var(--accent2); box-shadow: 0 0 10px var(--accent2); }
@@ -98,6 +104,7 @@
       <span id="modelLabel">Avatar:</span>
       <select id="modelSel" title="Elegir avatar"></select>
       <button id="mic" class="on" title="Activar/desactivar microfono">Mic ON</button>
+      <button id="expand" class="ghost" title="Ver el mensaje completo">Ver todo</button>
     </div>
   </div>
 
