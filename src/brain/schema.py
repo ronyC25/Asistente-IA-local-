@@ -1,6 +1,7 @@
 """Definiciones (JSON Schema) de las herramientas disponibles."""
 from __future__ import annotations
 
+from ..timeutil import PERIODOS
 from ..tools import (
     calendar,
     email_tool,
@@ -13,6 +14,26 @@ from ..tools import (
     tasks,
 )
 from .registry import READ, WRITE
+
+
+def _periodo_props() -> dict:
+    """Propiedades comunes para filtrar por rango relativo (periodo + dias)."""
+    return {
+        "periodo": {
+            "type": "string",
+            "enum": list(PERIODOS),
+            "description": (
+                "Rango relativo de fechas. Prefierelo antes que calcular fechas: "
+                "hoy, manana, pasado_manana, fin_de_semana, esta_semana, "
+                "semana_que_viene, proximos_dias (usa 'dias'), este_mes, o un dia "
+                "de la semana (lunes..domingo)."
+            ),
+        },
+        "dias": {
+            "type": "integer",
+            "description": "Numero de dias cuando periodo=proximos_dias.",
+        },
+    }
 
 
 def _describe_crear_tarea(a: dict) -> str:
@@ -183,7 +204,10 @@ def build_tools() -> list[dict]:
         },
         {
             "name": "listar_tareas",
-            "description": "Lista las tareas guardadas con filtros opcionales.",
+            "description": (
+                "Lista las tareas guardadas con filtros opcionales. Para rangos de "
+                "fecha usa 'periodo' (hoy, esta_semana, proximos_dias, etc.)."
+            ),
             "parameters": {
                 "type": "object",
                 "properties": {
@@ -207,6 +231,7 @@ def build_tools() -> list[dict]:
                         ),
                     },
                     "limite": {"type": "integer", "description": "Maximo de resultados"},
+                    **_periodo_props(),
                 },
             },
             "func": tasks.listar_tareas,
@@ -332,6 +357,7 @@ def build_tools() -> list[dict]:
                         ),
                     },
                     "limite": {"type": "integer"},
+                    **_periodo_props(),
                 },
             },
             "func": reminders.listar_recordatorios,
@@ -450,7 +476,9 @@ def build_tools() -> list[dict]:
             "name": "listar_eventos",
             "description": (
                 "Lista los eventos del calendario. Por defecto muestra los proximos "
-                "desde ahora."
+                "desde ahora. Para rangos relativos usa 'periodo' (hoy, manana, "
+                "fin_de_semana, proximos_dias con 'dias', esta_semana, etc.) en vez "
+                "de calcular fechas."
             ),
             "parameters": {
                 "type": "object",
@@ -466,6 +494,7 @@ def build_tools() -> list[dict]:
                         ),
                     },
                     "limite": {"type": "integer"},
+                    **_periodo_props(),
                 },
             },
             "func": calendar.listar_eventos,

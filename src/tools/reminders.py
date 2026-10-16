@@ -8,7 +8,7 @@ from dateutil.relativedelta import relativedelta
 
 from ..config import settings
 from ..db import connect
-from ..timeutil import parse_datetime
+from ..timeutil import parse_datetime, resolver_periodo
 
 _CANALES = {"windows", "telegram"}
 _RECURRENCIAS = {"ninguna", "diaria", "semanal", "mensual"}
@@ -94,6 +94,8 @@ def listar_recordatorios(
     estado: str = "pendientes",
     limite: int = 50,
     vencidos: bool = False,
+    periodo: str | None = None,
+    dias: int | None = None,
 ) -> dict:
     estado = (estado or "pendientes").strip().lower()
     if estado not in _ESTADO_FILTRO:
@@ -108,7 +110,13 @@ def listar_recordatorios(
         placeholders = ", ".join("?" for _ in filtro)
         conds.append(f"estado IN ({placeholders})")
         params.extend(filtro)
-    if vencidos:
+    if periodo:
+        d, h = resolver_periodo(periodo, dias)
+        conds.append("datetime(cuando) >= datetime(?)")
+        params.append(d.isoformat())
+        conds.append("datetime(cuando) <= datetime(?)")
+        params.append(h.isoformat())
+    elif vencidos:
         conds.append("datetime(cuando) < datetime('now', 'localtime')")
     clause = ("WHERE " + " AND ".join(conds)) if conds else ""
     conn = _conn()

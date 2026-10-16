@@ -11,6 +11,7 @@ from .confirm import (
     classify_confirmation,
     looks_like_action,
     looks_like_query,
+    periodo_de_texto,
     quiere_historial_recordatorios,
 )
 from .registry import Registry
@@ -31,6 +32,10 @@ def _norm_args(args: Any) -> dict:
         except json.JSONDecodeError:
             return {}
     return dict(args)
+
+
+# Herramientas de listado que aceptan el parametro 'periodo' (rango relativo).
+_TOOLS_CON_PERIODO = ("listar_eventos", "listar_tareas", "listar_recordatorios")
 
 
 def partition_calls(
@@ -94,18 +99,30 @@ class Agent:
     def _ajustar_args(
         self, parsed: list[tuple[str, dict]], user_text: str | None
     ) -> list[tuple[str, dict]]:
-        """Corrige args que el modelo deja por defecto cuando el usuario pide el
-        historial de recordatorios (p. ej. 'la lista de recordatorios')."""
+        """Ajustes deterministas de argumentos, para no depender del modelo:
+
+        - historial de recordatorios (estado por defecto -> 'historial');
+        - rangos de fecha relativos (fija 'periodo' y descarta desde/hasta).
+        """
         if not user_text:
             return parsed
+        periodo = periodo_de_texto(user_text)
         ajustado: list[tuple[str, dict]] = []
         for name, args in parsed:
+            args = dict(args or {})
             if name == "listar_recordatorios":
-                est = str((args or {}).get("estado", "")).strip().lower()
+                est = str(args.get("estado", "")).strip().lower()
                 if est in ("", "pendiente", "pendientes", "todos", "todas") and (
                     quiere_historial_recordatorios(user_text)
                 ):
-                    args = {**(args or {}), "estado": "historial"}
+                    args["estado"] = "historial"
+            if periodo and name in _TOOLS_CON_PERIODO:
+                p, n = periodo
+                args["periodo"] = p
+                if n is not None:
+                    args["dias"] = n
+                args.pop("desde", None)
+                args.pop("hasta", None)
             ajustado.append((name, args))
         return ajustado
 

@@ -249,3 +249,33 @@ def test_ajustar_args_respeta_pendientes():
     parsed = [("listar_recordatorios", {})]
     out = agent._ajustar_args(parsed, "que recordatorios pendientes tengo?")
     assert out == [("listar_recordatorios", {})]
+
+
+def test_ajustar_args_periodo_proximos_dias():
+    agent = Agent(_registry(), model="dummy", system_prompt="sys")
+    parsed = [("listar_eventos", {"desde": "2026-10-17", "hasta": "2026-10-19"})]
+    out = agent._ajustar_args(parsed, "agenda de los proximos 3 dias")
+    assert out == [("listar_eventos", {"periodo": "proximos_dias", "dias": 3})]
+
+
+def test_ajustar_args_periodo_manana():
+    agent = Agent(_registry(), model="dummy", system_prompt="sys")
+    parsed = [("listar_eventos", {"desde": "2026-10-17", "hasta": "2026-10-18"})]
+    out = agent._ajustar_args(parsed, "cual es la agenda de mañana")
+    assert out == [("listar_eventos", {"periodo": "manana"})]
+
+
+def test_ajustar_args_sin_periodo_no_toca_fechas():
+    agent = Agent(_registry(), model="dummy", system_prompt="sys")
+    parsed = [("listar_eventos", {"desde": "2026-10-20"})]
+    out = agent._ajustar_args(parsed, "eventos del 20 de octubre")
+    assert out == [("listar_eventos", {"desde": "2026-10-20"})]
+
+
+def test_ajustar_args_periodo_en_tareas():
+    agent = Agent(_registry(), model="dummy", system_prompt="sys")
+    parsed = [("listar_tareas", {"estado": "pendientes"})]
+    out = agent._ajustar_args(parsed, "que tareas tengo esta semana")
+    assert out == [
+        ("listar_tareas", {"estado": "pendientes", "periodo": "esta_semana"})
+    ]

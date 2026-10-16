@@ -6,7 +6,7 @@ from datetime import date, datetime
 
 from ..config import settings
 from ..db import connect
-from ..timeutil import parse_datetime
+from ..timeutil import parse_datetime, resolver_periodo
 
 _PRIORIDADES = {
     "alta": "alta",
@@ -113,6 +113,8 @@ def listar_tareas(
     vencen_hoy: bool = False,
     vencidas: bool = False,
     limite: int = 50,
+    periodo: str | None = None,
+    dias: int | None = None,
 ) -> dict:
     estado = (estado or "pendientes").strip().lower()
     where: list[str] = []
@@ -128,13 +130,21 @@ def listar_tareas(
     if prioridad:
         where.append("prioridad = ?")
         params.append(_norm_prioridad(prioridad))
-    if vencen_hoy:
-        where.append("date(fecha_limite) = date('now', 'localtime')")
-    if vencidas:
-        where.append(
-            "fecha_limite IS NOT NULL AND "
-            "datetime(fecha_limite) < datetime('now', 'localtime')"
-        )
+    if periodo:
+        d, h = resolver_periodo(periodo, dias)
+        where.append("fecha_limite IS NOT NULL")
+        where.append("date(fecha_limite) >= date(?)")
+        params.append(d.isoformat())
+        where.append("date(fecha_limite) <= date(?)")
+        params.append(h.isoformat())
+    else:
+        if vencen_hoy:
+            where.append("date(fecha_limite) = date('now', 'localtime')")
+        if vencidas:
+            where.append(
+                "fecha_limite IS NOT NULL AND "
+                "datetime(fecha_limite) < datetime('now', 'localtime')"
+            )
     clause = ("WHERE " + " AND ".join(where)) if where else ""
     conn = _conn()
     try:

@@ -43,7 +43,7 @@ telegram:
 # Google Calendar (sincronizacion bidireccional via OAuth)
 # Requiere autorizar una vez:  .\start.ps1 -Mode auth
 google_calendar:
-  enabled: false                        # true para activar la sincronizacion
+  enabled: true                        # true para activar la sincronizacion
   calendar_id: primary                  # 'primary' o el id de un calendario concreto
   credentials_file: data/google_credentials.json   # OAuth client (App de escritorio)
   token_file: data/google_token.json               # se genera al autorizar

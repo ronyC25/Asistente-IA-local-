@@ -9,8 +9,13 @@ from src.tools import calendar
 
 
 @pytest.fixture(autouse=True)
-def tmp_db(tmp_path):
-    config.settings.database = str(tmp_path / "test.db")
+def tmp_db(tmp_path, monkeypatch):
+    monkeypatch.setattr(config.settings, "database", str(tmp_path / "test.db"))
+    monkeypatch.setattr(
+        config.settings,
+        "google_calendar",
+        dict(config.settings.google_calendar, enabled=False),
+    )
     calendar._conn().close()
     yield tmp_path
 
@@ -69,3 +74,26 @@ def test_listar_pasados():
     assert pasados["total"] == 1
     assert pasados["eventos"][0]["titulo"] == "Ayer"
     assert calendar.listar_eventos()["total"] == 1  # proximos
+
+
+def test_listar_periodo_manana():
+    manana = (datetime.now() + timedelta(days=1)).replace(
+        hour=10, minute=0, second=0, microsecond=0
+    )
+    calendar.crear_evento("Manana", manana.isoformat())
+    lejos = (datetime.now() + timedelta(days=10)).replace(
+        hour=10, minute=0, second=0, microsecond=0
+    )
+    calendar.crear_evento("Lejos", lejos.isoformat())
+    r = calendar.listar_eventos(periodo="manana")
+    assert r["total"] == 1
+    assert r["eventos"][0]["titulo"] == "Manana"
+
+
+def test_listar_periodo_proximos_dias():
+    hoy = datetime.now().replace(hour=23, minute=0, second=0, microsecond=0)
+    calendar.crear_evento("HoyTarde", hoy.isoformat())
+    calendar.crear_evento("En5dias", (hoy + timedelta(days=5)).isoformat())
+    r = calendar.listar_eventos(periodo="proximos_dias", dias=3)
+    assert r["total"] == 1
+    assert r["eventos"][0]["titulo"] == "HoyTarde"

@@ -90,6 +90,8 @@ Escribe (o di) cosas como:
 
 - "Anade una tarea: comprar leche, prioridad alta"
 - "Que tareas pendientes tengo?"
+- "Que agenda tengo los proximos 3 dias?"      # rangos: hoy, manana, fin de semana, esta semana...
+- "Que hay el fin de semana?"
 - "Recuerdame llamar al banco manana a las 9"
 - "Recuerdame tomar agua todos los dias a las 9"        # recordatorio recurrente
 - "Agenda una reunion el martes a las 10 en la oficina"

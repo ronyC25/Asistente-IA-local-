@@ -72,7 +72,7 @@ avatar/              # app Live2D + overlay Electron (Fase 7)
   electron/          #   ventana overlay transparente y click-through
   setup_assets.ps1   #   descarga librerias + modelo Haru (no versionados)
 start*.ps1           # lanzadores (venv + modos + start-all + auth)
-tests/               # 146 tests (pytest)
+tests/               # 180 tests (pytest)
 ```
 
 ## Herramientas del agente (23)
@@ -104,6 +104,14 @@ Google Calendar: `sincronizar_calendario` hace **pull incremental** (`syncToken`
 *best-effort* inmediato (si esta conectado) y se marca `pending_push=1` como red de
 seguridad. Los conflictos los resuelve `google_calendar.conflict_policy`
 (por defecto `last_write_wins`: gana el cambio mas reciente; empate -> local).
+
+Rangos de fecha **deterministas**: las tools de listado aceptan `periodo` (+ `dias`):
+`hoy`, `manana`, `pasado_manana`, `fin_de_semana`, `esta_semana`, `semana_que_viene`,
+`proximos_dias` (N dias naturales desde hoy), `este_mes`, o un dia (`lunes`..`domingo`).
+`src/timeutil.resolver_periodo` calcula el rango (no el modelo). El agente ademas lo
+fuerza en `agent._ajustar_args` (via `confirm.periodo_de_texto`), descartando
+`desde`/`hasta` mal calculados por el LLM. `desde`/`hasta` quedan solo para fechas
+explicitas.
 
 ## Como arrancar
 
@@ -239,6 +247,10 @@ aplicacion** (requiere verificacion en 2 pasos).
   recordatorios, calendario, correo) sin llamar a la herramienta de lectura, el
   agente le insiste (`_NUDGE_READ`, `looks_like_query`) y, si aun asi no la llama,
   reintenta una vez con `think=True`.
+- **Fechas relativas**: qwen3:8b calculaba mal los rangos (p. ej. "proximos 3 dias"
+  desde el dia equivocado). Ahora se resuelven en codigo con `periodo`
+  (`src/timeutil.resolver_periodo`) y se fuerzan en `agent._ajustar_args`; el modelo
+  solo elige la etiqueta.
 - **Formato de salida**: las respuestas se limpian de Markdown (`src/brain/textfmt.py`
   via `limpiar_respuesta`) para que no aparezcan asteriscos/negritas/backticks ni en
   los mensajes ni en la voz.

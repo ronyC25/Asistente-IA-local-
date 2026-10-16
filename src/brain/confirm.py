@@ -182,6 +182,48 @@ def quiere_historial_recordatorios(text: str) -> bool:
     return bool(palabras & _HISTORIAL_WORDS)
 
 
+_WEEKDAYS = ("lunes", "martes", "miercoles", "jueves", "viernes", "sabado", "domingo")
+
+
+def periodo_de_texto(text: str) -> tuple[str, int | None] | None:
+    """Detecta una expresion de rango relativo y devuelve (periodo, dias) o None.
+
+    Sirve para resolver fechas de forma determinista (sin que el modelo calcule).
+    """
+    t = _norm(text)
+    if not t:
+        return None
+    if "pasado manana" in t:
+        return ("pasado_manana", None)
+    if "fin de semana" in t or "finde" in t:
+        return ("fin_de_semana", None)
+    if any(
+        frase in t
+        for frase in (
+            "semana que viene",
+            "proxima semana",
+            "semana siguiente",
+            "la otra semana",
+        )
+    ):
+        return ("semana_que_viene", None)
+    if "esta semana" in t:
+        return ("esta_semana", None)
+    if "este mes" in t or "mes en curso" in t:
+        return ("este_mes", None)
+    m = re.search(r"(?:proximos|proximas|siguientes)\s+(\d+)\s+dias?", t)
+    if m:
+        return ("proximos_dias", int(m.group(1)))
+    if "hoy" in t:
+        return ("hoy", None)
+    if "manana" in t:
+        return ("manana", None)
+    for wd in _WEEKDAYS:
+        if re.search(rf"\b{wd}\b", t):
+            return (wd, None)
+    return None
+
+
 def classify_confirmation(text: str) -> bool | None:
     """Devuelve True (confirmar), False (cancelar) o None (ambiguo)."""
     t = _norm(text)

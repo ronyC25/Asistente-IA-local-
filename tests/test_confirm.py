@@ -6,6 +6,7 @@ from src.brain.confirm import (
     classify_confirmation,
     looks_like_action,
     looks_like_query,
+    periodo_de_texto,
     quiere_historial_recordatorios,
 )
 
@@ -91,3 +92,25 @@ def test_quiere_historial_false(text):
 
 def test_quiere_historial_cancelados_false():
     assert quiere_historial_recordatorios("muestrame los recordatorios cancelados") is False
+
+
+@pytest.mark.parametrize(
+    "text,esperado",
+    [
+        ("cual es la agenda de los proximos 3 dias", ("proximos_dias", 3)),
+        ("y en los siguientes 2 dias", ("proximos_dias", 2)),
+        ("la agenda de mañana", ("manana", None)),
+        ("agenda de pasado mañana", ("pasado_manana", None)),
+        ("que hay el fin de semana", ("fin_de_semana", None)),
+        ("algo para el finde", ("fin_de_semana", None)),
+        ("tengo algo esta semana", ("esta_semana", None)),
+        ("la semana que viene", ("semana_que_viene", None)),
+        ("eventos de este mes", ("este_mes", None)),
+        ("que hay hoy", ("hoy", None)),
+        ("agenda del viernes", ("viernes", None)),
+        ("muestrame mis tareas", None),
+        ("crea una tarea comprar leche", None),
+    ],
+)
+def test_periodo_de_texto(text, esperado):
+    assert periodo_de_texto(text) == esperado

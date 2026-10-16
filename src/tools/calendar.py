@@ -13,7 +13,7 @@ from pathlib import Path
 
 from ..config import settings
 from ..db import connect
-from ..timeutil import parse_datetime
+from ..timeutil import parse_datetime, resolver_periodo
 
 log = logging.getLogger("asistente.calendar")
 
@@ -147,23 +147,32 @@ def listar_eventos(
     incluir_cancelados: bool = False,
     limite: int = 100,
     pasados: bool = False,
+    periodo: str | None = None,
+    dias: int | None = None,
 ) -> dict:
     where: list[str] = []
     params: list = []
     if not incluir_cancelados:
         where.append("estado = 'activo'")
-    if desde:
+    if periodo:
+        d, h = resolver_periodo(periodo, dias)
         where.append("inicio >= ?")
-        params.append(parse_datetime(desde).isoformat())
-    elif not pasados:
-        where.append("inicio >= ?")
-        params.append(datetime.now().isoformat())
-    if hasta:
+        params.append(d.isoformat())
         where.append("inicio <= ?")
-        params.append(parse_datetime(hasta).isoformat())
-    elif pasados:
-        where.append("inicio < ?")
-        params.append(datetime.now().isoformat())
+        params.append(h.isoformat())
+    else:
+        if desde:
+            where.append("inicio >= ?")
+            params.append(parse_datetime(desde).isoformat())
+        elif not pasados:
+            where.append("inicio >= ?")
+            params.append(datetime.now().isoformat())
+        if hasta:
+            where.append("inicio <= ?")
+            params.append(parse_datetime(hasta).isoformat())
+        elif pasados:
+            where.append("inicio < ?")
+            params.append(datetime.now().isoformat())
     clause = ("WHERE " + " AND ".join(where)) if where else ""
     orden = "inicio DESC" if pasados else "inicio"
     conn = _conn()

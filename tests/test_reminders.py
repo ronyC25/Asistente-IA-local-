@@ -120,3 +120,17 @@ def test_listar_historial_excluye_cancelados():
 
     todos = reminders.listar_recordatorios("todos")
     assert {x["texto"] for x in todos["recordatorios"]} == {"Uno", "Dos"}
+
+
+def test_listar_recordatorios_por_periodo():
+    manana = (datetime.now() + timedelta(days=1)).replace(
+        hour=10, minute=0, second=0, microsecond=0
+    )
+    en10 = (datetime.now() + timedelta(days=10)).replace(
+        hour=10, minute=0, second=0, microsecond=0
+    )
+    reminders.crear_recordatorio("Manana", manana.isoformat(timespec="minutes"))
+    reminders.crear_recordatorio("En10dias", en10.isoformat(timespec="minutes"))
+    r = reminders.listar_recordatorios(periodo="manana")
+    assert r["total"] == 1
+    assert r["recordatorios"][0]["texto"] == "Manana"

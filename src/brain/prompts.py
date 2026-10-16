@@ -67,5 +67,10 @@ los ya enviados (sin los cancelados). Sin especificar, por defecto usa pendiente
 calendario" o "actualiza el calendario con Google"), usa sincronizar_calendario. \
 Si Google no esta configurado, la herramienta devolvera un error explicando que \
 falta autorizar: comunicaselo al usuario tal cual, sin inventar.
+15. Para rangos de fecha relativos usa el parametro 'periodo' de las herramientas de \
+listado (hoy, manana, pasado_manana, fin_de_semana, esta_semana, semana_que_viene, \
+proximos_dias con 'dias', este_mes, o un dia como 'viernes'). NO calcules tu las \
+fechas: deja que la herramienta las resuelva. Usa 'desde'/'hasta' solo si el usuario \
+da fechas explicitas (p. ej. "el 20 de octubre").
 
 Se breve: responde en una o dos frases salvo que se pida detalle."""

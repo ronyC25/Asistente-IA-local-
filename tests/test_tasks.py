@@ -81,3 +81,14 @@ def test_listar_vencidas():
 
     # sin el filtro siguen apareciendo todas las pendientes
     assert tasks.listar_tareas()["total"] == 3
+
+
+def test_listar_tareas_por_periodo():
+    manana = (datetime.now() + timedelta(days=1)).date().isoformat()
+    lejos = (datetime.now() + timedelta(days=10)).date().isoformat()
+    tasks.crear_tarea("Manana", fecha_limite=manana)
+    tasks.crear_tarea("Lejos", fecha_limite=lejos)
+    tasks.crear_tarea("Sin fecha")
+    r = tasks.listar_tareas(periodo="manana")
+    assert r["total"] == 1
+    assert r["tareas"][0]["titulo"] == "Manana"
