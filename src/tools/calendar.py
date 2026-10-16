@@ -1,6 +1,12 @@
-"""Calendario local: eventos en SQLite con exportacion a formato .ics."""
+"""Calendario local: eventos en SQLite con exportacion a formato .ics.
+
+La sincronizacion con Google Calendar (bidireccional, OAuth) vive en
+``src/tools/gcal.py``; aqui solo se guarda el estado (``gcal_id``, ``pending_push``...)
+y se hace un push *best-effort* al crear/editar/cancelar.
+"""
 from __future__ import annotations
 
+import logging
 import sqlite3
 from datetime import datetime, timedelta
 from pathlib import Path
@@ -8,6 +14,8 @@ from pathlib import Path
 from ..config import settings
 from ..db import connect
 from ..timeutil import parse_datetime
+
+log = logging.getLogger("asistente.calendar")
 
 _SCHEMA = """
 CREATE TABLE IF NOT EXISTS events (
@@ -20,21 +28,73 @@ CREATE TABLE IF NOT EXISTS events (
     notas         TEXT,
     estado        TEXT NOT NULL DEFAULT 'activo',
     creado_en     TEXT NOT NULL DEFAULT (datetime('now')),
-    actualizado_en TEXT NOT NULL DEFAULT (datetime('now'))
+    actualizado_en TEXT NOT NULL DEFAULT (datetime('now')),
+    gcal_id       TEXT,
+    gcal_updated  TEXT,
+    gcal_etag     TEXT,
+    pending_push  INTEGER NOT NULL DEFAULT 0
 );
 """
+
+_SYNC_META_SCHEMA = """
+CREATE TABLE IF NOT EXISTS sync_meta (
+    calendar_id TEXT PRIMARY KEY,
+    sync_token  TEXT,
+    last_sync   TEXT
+);
+"""
+
+# Columnas anadidas despues (migracion de BD existentes).
+_GCAL_COLUMNS = {
+    "gcal_id": "TEXT",
+    "gcal_updated": "TEXT",
+    "gcal_etag": "TEXT",
+    "pending_push": "INTEGER NOT NULL DEFAULT 0",
+}
 
 
 def _conn() -> sqlite3.Connection:
     conn = connect(settings.database)
     conn.execute(_SCHEMA)
+    _migrate(conn)
     return conn
+
+
+def _migrate(conn: sqlite3.Connection) -> None:
+    cols = {r["name"] for r in conn.execute("PRAGMA table_info(events)")}
+    for name, decl in _GCAL_COLUMNS.items():
+        if name not in cols:
+            conn.execute(f"ALTER TABLE events ADD COLUMN {name} {decl}")
+    conn.execute(_SYNC_META_SCHEMA)
+    conn.commit()
 
 
 def _row(row: sqlite3.Row) -> dict:
     d = dict(row)
     d["todo_el_dia"] = bool(d["todo_el_dia"])
+    if "pending_push" in d:
+        d["pending_push"] = bool(d["pending_push"])
     return d
+
+
+def _refetch(id: int) -> dict:
+    conn = _conn()
+    try:
+        row = conn.execute("SELECT * FROM events WHERE id = ?", (int(id),)).fetchone()
+    finally:
+        conn.close()
+    return _row(row)
+
+
+def _push_best_effort(event_id: int) -> None:
+    """Intenta subir el evento a Google si esta conectado (nunca rompe el flujo local)."""
+    try:
+        from . import gcal
+
+        if gcal.esta_conectado():
+            gcal.push_evento(event_id)
+    except Exception as exc:  # noqa: BLE001
+        log.debug("push a Google diferido (evento %s): %s", event_id, exc)
 
 
 def _find(conn: sqlite3.Connection, id: int) -> sqlite3.Row:
@@ -62,8 +122,8 @@ def crear_evento(
     try:
         cur = conn.execute(
             """INSERT INTO events
-               (titulo, inicio, fin, todo_el_dia, lugar, notas)
-               VALUES (?, ?, ?, ?, ?, ?)""",
+               (titulo, inicio, fin, todo_el_dia, lugar, notas, pending_push)
+               VALUES (?, ?, ?, ?, ?, ?, 1)""",
             (
                 str(titulo).strip(),
                 ini.isoformat(),
@@ -77,7 +137,8 @@ def crear_evento(
         row = conn.execute("SELECT * FROM events WHERE id = ?", (cur.lastrowid,)).fetchone()
     finally:
         conn.close()
-    return _row(row)
+    _push_best_effort(row["id"])
+    return _refetch(row["id"])
 
 
 def listar_eventos(
@@ -168,13 +229,15 @@ def editar_evento(
         if not sets:
             return _row(row)
         sets.append("actualizado_en = datetime('now')")
+        sets.append("pending_push = 1")
         params.append(row["id"])
         conn.execute(f"UPDATE events SET {', '.join(sets)} WHERE id = ?", params)
         conn.commit()
         row = conn.execute("SELECT * FROM events WHERE id = ?", (row["id"],)).fetchone()
     finally:
         conn.close()
-    return _row(row)
+    _push_best_effort(row["id"])
+    return _refetch(row["id"])
 
 
 def cancelar_evento(id: int) -> dict:
@@ -183,14 +246,169 @@ def cancelar_evento(id: int) -> dict:
         row = _find(conn, id)
         if row["estado"] != "cancelado":
             conn.execute(
-                "UPDATE events SET estado = 'cancelado', actualizado_en = datetime('now') WHERE id = ?",
+                "UPDATE events SET estado = 'cancelado', "
+                "actualizado_en = datetime('now'), pending_push = 1 WHERE id = ?",
                 (row["id"],),
             )
             conn.commit()
             row = conn.execute("SELECT * FROM events WHERE id = ?", (row["id"],)).fetchone()
     finally:
         conn.close()
-    return _row(row)
+    _push_best_effort(row["id"])
+    return _refetch(row["id"])
+
+
+# --- soporte de sincronizacion con Google Calendar ---
+def listar_pendientes_push() -> list[dict]:
+    conn = _conn()
+    try:
+        rows = conn.execute(
+            "SELECT * FROM events WHERE pending_push = 1 ORDER BY id"
+        ).fetchall()
+    finally:
+        conn.close()
+    return [_row(r) for r in rows]
+
+
+def obtener_por_gcal(gcal_id: str) -> dict | None:
+    conn = _conn()
+    try:
+        row = conn.execute(
+            "SELECT * FROM events WHERE gcal_id = ?", (gcal_id,)
+        ).fetchone()
+    finally:
+        conn.close()
+    return _row(row) if row is not None else None
+
+
+def guardar_gcal(
+    id: int, gcal_id: str | None, updated: str | None, etag: str | None
+) -> None:
+    conn = _conn()
+    try:
+        conn.execute(
+            "UPDATE events SET gcal_id = ?, gcal_updated = ?, gcal_etag = ? WHERE id = ?",
+            (gcal_id, updated, etag, int(id)),
+        )
+        conn.commit()
+    finally:
+        conn.close()
+
+
+def marcar_sincronizado(id: int) -> None:
+    conn = _conn()
+    try:
+        conn.execute("UPDATE events SET pending_push = 0 WHERE id = ?", (int(id),))
+        conn.commit()
+    finally:
+        conn.close()
+
+
+def upsert_desde_gcal(
+    gcal_id: str, datos: dict, updated: str | None, etag: str | None
+) -> int:
+    conn = _conn()
+    try:
+        cur = conn.execute(
+            """INSERT INTO events
+               (titulo, inicio, fin, todo_el_dia, lugar, notas,
+                gcal_id, gcal_updated, gcal_etag, pending_push)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 0)""",
+            (
+                datos["titulo"],
+                datos["inicio"],
+                datos["fin"],
+                1 if datos["todo_el_dia"] else 0,
+                datos.get("lugar"),
+                datos.get("notas"),
+                gcal_id,
+                updated,
+                etag,
+            ),
+        )
+        conn.commit()
+        return int(cur.lastrowid)
+    finally:
+        conn.close()
+
+
+def actualizar_desde_gcal(
+    gcal_id: str, datos: dict, updated: str | None, etag: str | None
+) -> None:
+    conn = _conn()
+    try:
+        conn.execute(
+            """UPDATE events SET titulo = ?, inicio = ?, fin = ?, todo_el_dia = ?,
+               lugar = ?, notas = ?, gcal_updated = ?, gcal_etag = ?,
+               pending_push = 0, actualizado_en = datetime('now')
+               WHERE gcal_id = ?""",
+            (
+                datos["titulo"],
+                datos["inicio"],
+                datos["fin"],
+                1 if datos["todo_el_dia"] else 0,
+                datos.get("lugar"),
+                datos.get("notas"),
+                updated,
+                etag,
+                gcal_id,
+            ),
+        )
+        conn.commit()
+    finally:
+        conn.close()
+
+
+def cancelar_por_gcal(gcal_id: str) -> None:
+    conn = _conn()
+    try:
+        conn.execute(
+            "UPDATE events SET estado = 'cancelado', pending_push = 0, "
+            "actualizado_en = datetime('now') WHERE gcal_id = ?",
+            (gcal_id,),
+        )
+        conn.commit()
+    finally:
+        conn.close()
+
+
+def get_sync_token(calendar_id: str) -> str | None:
+    conn = _conn()
+    try:
+        row = conn.execute(
+            "SELECT sync_token FROM sync_meta WHERE calendar_id = ?", (calendar_id,)
+        ).fetchone()
+    finally:
+        conn.close()
+    return row["sync_token"] if row is not None else None
+
+
+def set_sync_token(calendar_id: str, token: str | None) -> None:
+    conn = _conn()
+    try:
+        conn.execute(
+            """INSERT INTO sync_meta (calendar_id, sync_token, last_sync)
+               VALUES (?, ?, datetime('now'))
+               ON CONFLICT(calendar_id) DO UPDATE SET
+                 sync_token = excluded.sync_token, last_sync = datetime('now')""",
+            (calendar_id, token),
+        )
+        conn.commit()
+    finally:
+        conn.close()
+
+
+def set_last_sync(calendar_id: str) -> None:
+    conn = _conn()
+    try:
+        conn.execute(
+            """INSERT INTO sync_meta (calendar_id, last_sync) VALUES (?, datetime('now'))
+               ON CONFLICT(calendar_id) DO UPDATE SET last_sync = datetime('now')""",
+            (calendar_id,),
+        )
+        conn.commit()
+    finally:
+        conn.close()
 
 
 # --- exportacion .ics ---

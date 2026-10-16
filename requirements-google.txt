@@ -1,0 +1,7 @@
+# Dependencias para la sincronizacion con Google Calendar (opcional).
+# Instalar solo si quieres conectar Google Calendar:
+#   .\.venv\Scripts\python.exe -m pip install -r requirements-google.txt
+google-api-python-client>=2.100
+google-auth-oauthlib>=1.2
+google-auth-httplib2>=0.2
+tzlocal>=5.0

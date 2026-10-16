@@ -11,6 +11,10 @@ data/*.log
 *.ics
 .pytest_cache/
 
+# Google Calendar: credenciales OAuth y token (secretos, no versionar)
+data/google_credentials.json
+data/google_token.json
+
 # Avatar: assets pesados / con licencia propia (regenerar con avatar/setup_assets.ps1)
 avatar/node_modules/
 avatar/vendor/

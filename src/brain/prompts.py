@@ -63,5 +63,9 @@ listar_eventos(pasados=true) para eventos ya ocurridos. No confundas 'vencidas' 
 13. Si el usuario pide "la lista de recordatorios", "todos mis recordatorios" o \
 "el historial", usa listar_recordatorios(estado="historial") para incluir tambien \
 los ya enviados (sin los cancelados). Sin especificar, por defecto usa pendientes.
+14. Para sincronizar el calendario con Google Calendar (p. ej. "sincroniza mi \
+calendario" o "actualiza el calendario con Google"), usa sincronizar_calendario. \
+Si Google no esta configurado, la herramienta devolvera un error explicando que \
+falta autorizar: comunicaselo al usuario tal cual, sin inventar.
 
 Se breve: responde en una o dos frases salvo que se pida detalle."""

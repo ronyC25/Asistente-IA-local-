@@ -97,6 +97,7 @@ Escribe (o di) cosas como:
 - "Crea una lista de la compra y anade leche y pan"
 - "Mandame la lista de recordatorios por Telegram"
 - "Lee mis ultimos 3 correos"
+- "Sincroniza mi calendario con Google"          # requiere Google Calendar configurado
 
 Las acciones que modifican datos piden confirmacion (`si` / `no`).
 
@@ -123,6 +124,33 @@ Las acciones que modifican datos piden confirmacion (`si` / `no`).
 ### Email (Gmail)
 Rellena en `.env`: `EMAIL_ADDRESS`, `EMAIL_PASSWORD` (contrasena de aplicacion),
 `IMAP_HOST=imap.gmail.com`, `SMTP_HOST=smtp.gmail.com`.
+
+### Google Calendar (opcional, sincronizacion bidireccional)
+Conecta tu calendario con Google via OAuth. Instala las dependencias extra:
+```powershell
+.\.venv\Scripts\python.exe -m pip install -r requirements-google.txt
+```
+
+1. En [Google Cloud Console](https://console.cloud.google.com):
+   - Crea un proyecto y habilita **Google Calendar API**.
+   - Configura la *pantalla de consentimiento OAuth* (tipo **Externo**) y anadete
+     a ti mismo como **usuario de prueba**.
+   - Credenciales -> **ID de cliente OAuth** -> tipo **App de escritorio** -> descarga el JSON.
+2. Guarda el JSON como `data/google_credentials.json`.
+3. Autoriza una vez (abre el navegador):
+   ```powershell
+   .\start.ps1 -Mode auth
+   ```
+4. Activa la sincronizacion en `config/settings.yaml`:
+   ```yaml
+   google_calendar:
+     enabled: true
+   ```
+
+Uso: al crear/editar/cancelar un evento se sube a Google al momento (si hay
+conexion); di o escribe **"sincroniza mi calendario"** para traer los cambios de
+Google y subir los pendientes. Los conflictos los gana el cambio mas reciente.
+La zona horaria se detecta automaticamente (se puede fijar en `settings.yaml`).
 
 ## Tests
 

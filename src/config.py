@@ -69,6 +69,23 @@ class Settings:
             "poll_timeout": int(telegram.get("poll_timeout", 25)),
         }
 
+        google = data.get("google_calendar", {}) or {}
+        cred = google.get("credentials_file", "data/google_credentials.json")
+        token = google.get("token_file", "data/google_token.json")
+        self.google_calendar = {
+            "enabled": bool(google.get("enabled", False)),
+            "calendar_id": os.getenv("GOOGLE_CALENDAR_ID")
+            or google.get("calendar_id", "primary"),
+            "credentials_file": cred
+            if os.path.isabs(cred)
+            else str((ROOT / cred).resolve()),
+            "token_file": token
+            if os.path.isabs(token)
+            else str((ROOT / token).resolve()),
+            "timezone": google.get("timezone") or None,
+            "conflict_policy": google.get("conflict_policy", "last_write_wins"),
+        }
+
         self.ollama_host = os.getenv("OLLAMA_HOST") or None
 
         # Telegram

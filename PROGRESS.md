@@ -28,7 +28,7 @@ recordatorios, calendario, notificaciones, Telegram y correo, con interfaz de
 | 7 | Avatar Live2D + overlay Electron + lip-sync | Hecho |
 | Extra | Bot Telegram bidireccional | Hecho (modo `--telegram`) |
 | Extra | Productividad: notas, listas, recordatorios recurrentes | Hecho |
-| Extra | Google Calendar API (OAuth) | Pendiente |
+| Extra | Google Calendar API (OAuth, sincronizacion bidireccional) | Hecho |
 | Extra | Wake word en el navegador | Pendiente (cambio futuro) |
 
 ## Estructura
@@ -58,6 +58,8 @@ src/
     messaging.py     # Telegram
     email_tool.py    # email IMAP/SMTP
     calendar.py      # calendario local + export .ics
+    gcal.py          # sincronizacion con Google Calendar (OAuth, bidireccional)
+    gcal_auth.py     # autorizacion OAuth (una vez)
   voice/
     wake.py          # openWakeWord (hey_jarvis)
     stt.py           # faster-whisper
@@ -69,18 +71,18 @@ avatar/              # app Live2D + overlay Electron (Fase 7)
   index.html main.js #   escena Live2D + WebSocket + microfono + lip-sync
   electron/          #   ventana overlay transparente y click-through
   setup_assets.ps1   #   descarga librerias + modelo Haru (no versionados)
-start*.ps1           # lanzadores (venv + modos + start-all)
-tests/               # 116 tests (pytest)
+start*.ps1           # lanzadores (venv + modos + start-all + auth)
+tests/               # 146 tests (pytest)
 ```
 
-## Herramientas del agente (22)
+## Herramientas del agente (23)
 
 - **Tareas**: `crear_tarea`, `listar_tareas`, `completar_tarea`, `editar_tarea`, `eliminar_tarea`
 - **Recordatorios**: `crear_recordatorio` (con `recurrencia`), `listar_recordatorios`, `cancelar_recordatorio`
 - **Notas**: `consultar_notas` (read), `gestionar_notas` (write)
 - **Listas/checklists**: `consultar_listas` (read), `gestionar_listas` (write)
 - **Notif/Mensajeria/Email**: `enviar_notificacion_windows`, `enviar_telegram`, `leer_email`, `enviar_email`
-- **Calendario**: `crear_evento`, `listar_eventos`, `editar_evento`, `cancelar_evento`, `exportar_ics`
+- **Calendario**: `crear_evento`, `listar_eventos`, `editar_evento`, `cancelar_evento`, `exportar_ics`, `sincronizar_calendario`
 - **Sistema**: `fecha_hora_actual`
 
 Regla: las de **lectura** se ejecutan al instante; las de **escritura** piden
@@ -97,6 +99,12 @@ El agente lo aplica al pedir "la lista / todos mis recordatorios" (ajuste determ
 `agent._ajustar_args` + `confirm.quiere_historial_recordatorios`), porque el modelo
 tendia a dejar el estado por defecto (`pendientes`) y decir "no hay ninguno".
 
+Google Calendar: `sincronizar_calendario` hace **pull incremental** (`syncToken`) y
+**push** de lo pendiente. Al crear/editar/cancelar un evento se hace un push
+*best-effort* inmediato (si esta conectado) y se marca `pending_push=1` como red de
+seguridad. Los conflictos los resuelve `google_calendar.conflict_policy`
+(por defecto `last_write_wins`: gana el cambio mas reciente; empate -> local).
+
 ## Como arrancar
 
 > Usa siempre el Python del `.venv` (`.\.venv\Scripts\python.exe`) o los scripts
@@ -107,7 +115,8 @@ tendia a dejar el estado por defecto (`pendientes`) y decir "no hay ninguno".
 .\start-all.ps1        # TODO: Ollama + web + Telegram + avatar (overlay)
 .\start-web.ps1        # servidor web
 .\start-telegram.ps1   # bot de Telegram bidireccional
-.\start.ps1 -Mode web|telegram|voice|cli
+.\start.ps1 -Mode web|telegram|voice|cli|auth
+.\start.ps1 -Mode auth # autorizar Google Calendar (una vez; abre el navegador)
 
 # CLI interactiva
 .\.venv\Scripts\python.exe -m src.main
@@ -172,7 +181,9 @@ Requisitos: Ollama en ejecucion con `qwen3:8b` (`ollama pull qwen3:8b`).
 
 ### `config/settings.yaml`
 Modelo, temperatura, contexto, nombre, ruta de BD, host/puerto web y bloque
-`voice` (whisper_model, tts_voice, wake_model, wake_threshold, input_device...).
+`voice` (whisper_model, tts_voice, wake_model, wake_threshold, input_device...) y
+`google_calendar` (enabled, calendar_id, credentials_file, token_file, timezone,
+conflict_policy).
 
 ### `.env` (no se versiona; copia de `.env.example`)
 | Clave | Estado |
@@ -182,6 +193,7 @@ Modelo, temperatura, contexto, nombre, ruta de BD, host/puerto web y bloque
 | `TELEGRAM_CHAT_ID` | Configurado |
 | `EMAIL_ADDRESS` / `EMAIL_PASSWORD` | **Vacio (pendiente)** |
 | `IMAP_HOST` / `SMTP_HOST` | **Vacio (pendiente)** |
+| `GOOGLE_CALENDAR_ID` | `primary` (opcional) |
 
 Para Gmail: `imap.gmail.com:993`, `smtp.gmail.com:587` y una **contrasena de
 aplicacion** (requiere verificacion en 2 pasos).
@@ -191,6 +203,8 @@ aplicacion** (requiere verificacion en 2 pasos).
 - `requirements.txt`: ollama, fastapi, uvicorn, pydantic, PyYAML, python-dotenv,
   python-dateutil, APScheduler, httpx
 - `requirements-voice.txt`: faster-whisper, openwakeword, sounddevice, numpy, piper-tts
+- `requirements-google.txt`: google-api-python-client, google-auth-oauthlib,
+  google-auth-httplib2, tzlocal (sincronizacion con Google Calendar)
 - `requirements-dev.txt`: pytest, httpx
 
 ## Pendientes / proximos pasos
@@ -202,7 +216,8 @@ aplicacion** (requiere verificacion en 2 pasos).
    `getUpdates`) para controlar el asistente desde el chat de Telegram. **Hecho**
    (modo `--telegram`, `src/telegram_bot.py`).
 4. **Google Calendar API**: sincronizacion real (OAuth en Google Cloud) en lugar
-   del export manual a `.ics`.
+   del export manual a `.ics`. **Hecho** (modo `auth`, `src/tools/gcal.py`,
+   tool `sincronizar_calendario`).
 5. **Wake word personalizado**: entrenar un modelo para activarlo diciendo solo
    "Jarvis" en espanol.
 
@@ -228,6 +243,12 @@ aplicacion** (requiere verificacion en 2 pasos).
   via `limpiar_respuesta`) para que no aparezcan asteriscos/negritas/backticks ni en
   los mensajes ni en la voz.
 - **Secretos**: `.env`, `data/*.db` y `data/voices/` estan en `.gitignore`.
+- **Google Calendar**: requiere `requirements-google.txt`, autorizar una vez
+  (`start.ps1 -Mode auth`) y `google_calendar.enabled: true`. Credenciales/token en
+  `data/google_credentials.json` y `data/google_token.json` (**gitignored**).
+  Offline-first: sin red/token el CRUD local sigue funcionando y el push queda
+  pendiente (`pending_push`). El pull es incremental (`syncToken`; si caduca con
+  HTTP 410 se hace resync completo). Solo sincroniza mientras la app esta abierta.
 - **Avatar**: los assets (`avatar/vendor`, `avatar/public/models`, `node_modules`)
   no se versionan; usar `avatar/setup_assets.ps1`. El lip-sync usa el perfil de
   ejemplo de wLipSync. Modelo **Haru** = Cubism 4 (compatible con el Core 4.2.2).

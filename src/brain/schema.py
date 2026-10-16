@@ -4,6 +4,7 @@ from __future__ import annotations
 from ..tools import (
     calendar,
     email_tool,
+    gcal,
     lists,
     messaging,
     notes,
@@ -145,6 +146,10 @@ def _describe_exportar_ics(a: dict) -> str:
     if a.get("desde") or a.get("hasta"):
         rango = f" (desde {a.get('desde', '...')} hasta {a.get('hasta', '...')})"
     return f"Exportar los eventos a un archivo .ics{rango}"
+
+
+def _describe_sincronizar_calendario(a: dict) -> str:
+    return "Sincronizar el calendario local con Google Calendar"
 
 
 def build_tools() -> list[dict]:
@@ -517,6 +522,19 @@ def build_tools() -> list[dict]:
             "func": calendar.exportar_ics,
             "kind": WRITE,
             "describe": _describe_exportar_ics,
+        },
+        {
+            "name": "sincronizar_calendario",
+            "description": (
+                "Sincroniza el calendario local con Google Calendar "
+                "(bidireccional): trae los eventos nuevos/cambiados de Google y "
+                "sube los cambios locales pendientes. Usala cuando el usuario diga "
+                "'sincroniza mi calendario' o 'actualiza el calendario con Google'."
+            ),
+            "parameters": {"type": "object", "properties": {}},
+            "func": gcal.sincronizar,
+            "kind": WRITE,
+            "describe": _describe_sincronizar_calendario,
         },
         {
             "name": "consultar_notas",

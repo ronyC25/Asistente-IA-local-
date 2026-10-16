@@ -1,7 +1,7 @@
 # Lanzador del asistente: usa SIEMPRE el Python del entorno virtual (.venv).
-# Uso:  .\start.ps1 -Mode web|telegram|voice|cli   (por defecto: web)
+# Uso:  .\start.ps1 -Mode web|telegram|voice|cli|auth   (por defecto: web)
 param(
-    [ValidateSet("web", "telegram", "voice", "cli")]
+    [ValidateSet("web", "telegram", "voice", "cli", "auth")]
     [string]$Mode = "web"
 )
 
@@ -29,6 +29,7 @@ $pyArgs = switch ($Mode) {
     "telegram" { @("-m", "src.main", "--telegram") }
     "voice"    { @("-m", "src.main", "--voice") }
     "cli"      { @("-m", "src.main") }
+    "auth"     { @("-m", "src.tools.gcal_auth") }
 }
 
 Write-Host "[>] Modo '$Mode' con $py" -ForegroundColor Cyan
