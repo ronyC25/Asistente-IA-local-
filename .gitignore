@@ -15,6 +15,9 @@ data/*.log
 data/google_credentials.json
 data/google_token.json
 
+# Estado de ejecucion del avatar (posicion de la ventana)
+data/avatar_pos.json
+
 # Avatar: assets pesados / con licencia propia (regenerar con avatar/setup_assets.ps1)
 avatar/node_modules/
 avatar/vendor/
