@@ -5,10 +5,16 @@ import { createWLipSyncNode } from "./vendor/wlipsync-single.js";
 const CONFIG = {
   wsUrl: `${location.protocol === "https:" ? "wss" : "ws"}://${location.host}/ws`,
   lipsyncProfile: "public/lipsync/profile.json",
-  scale: 1,
+  scale: 0.55,
   defaultModel: "Haru",
   models: [],
 };
+
+// Fallback si /avatar/config no esta disponible (p. ej. backend antiguo).
+const FALLBACK_MODELS = [
+  { name: "Haru", path: "public/models/Haru/haru_greeter_t03.model3.json" },
+  { name: "Wanko", path: "public/models/Wanko/Wanko.model3.json" },
+];
 
 // Mapa emocion -> expresion por modelo (solo los que tienen expresiones).
 const EMOTION_MAPS = {
@@ -60,11 +66,18 @@ function fail(step, err) {
 
 // ---------------------------------------------------------------- Config
 async function loadConfig() {
-  const cfg = await fetch("/avatar/config").then((r) => r.json());
-  CONFIG.scale = typeof cfg.scale === "number" ? cfg.scale : 1;
-  CONFIG.models = cfg.models || [];
-  CONFIG.defaultModel = cfg.default || (CONFIG.models[0] && CONFIG.models[0].name);
-  if (cfg.lipsync_profile) CONFIG.lipsyncProfile = cfg.lipsync_profile;
+  let cfg = null;
+  try {
+    const r = await fetch("/avatar/config", { cache: "no-store" });
+    if (!r.ok) throw new Error(`HTTP ${r.status}`);
+    cfg = await r.json();
+  } catch (e) {
+    console.warn("[avatar] /avatar/config no disponible; uso la lista por defecto", e);
+  }
+  CONFIG.scale = cfg && typeof cfg.scale === "number" ? cfg.scale : 0.55;
+  CONFIG.models = cfg && cfg.models && cfg.models.length ? cfg.models : FALLBACK_MODELS;
+  CONFIG.defaultModel = (cfg && cfg.default) || CONFIG.models[0].name;
+  if (cfg && cfg.lipsync_profile) CONFIG.lipsyncProfile = cfg.lipsync_profile;
   modelSel.innerHTML = "";
   for (const m of CONFIG.models) {
     const opt = document.createElement("option");
