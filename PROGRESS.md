@@ -72,7 +72,7 @@ avatar/              # app Live2D + overlay Electron (Fase 7)
   electron/          #   ventana overlay transparente y click-through
   setup_assets.ps1   #   descarga librerias + modelos Haru/Wanko (no versionados)
 start*.ps1           # lanzadores (venv + modos + start-all + auth)
-tests/               # 214 tests (pytest)
+tests/               # 225 tests (pytest)
 ```
 
 ## Herramientas del agente (23)
@@ -273,6 +273,13 @@ aplicacion** (requiere verificacion en 2 pasos).
   devuelve los items; `listar_eventos` acepta `orden` (proximos/antiguos). Ademas,
   eventos, recordatorios y tareas incluyen un campo calculado **`faltan`** ("cuanto
   falta") para no depender de la aritmetica del modelo.
+- **Fechas explicitas y rangos**: `confirm.fecha_de_texto` ("28 de octubre", "28/10/2026",
+  "2026-10-28"; ano siguiente si ya paso) y `confirm.rango_de_texto` ("de aqui a dos
+  semanas", "en 3 dias", "proximas N semanas/meses"); `agent._ajustar_args` los fija como
+  `desde`/`hasta` en las tools de listado. `hasta` de solo fecha se interpreta como **fin
+  del dia** (`parse_datetime(..., end_of_day=True)`), para no excluir los eventos de ese
+  dia. Los resultados de las tools se **recortan a campos esenciales** (evita respuestas
+  vacias del modelo con listas grandes).
 - **Fechas relativas**: qwen3:8b calculaba mal los rangos (p. ej. "proximos 3 dias"
   desde el dia equivocado). Ahora se resuelven en codigo con `periodo`
   (`src/timeutil.resolver_periodo`) y se fuerzan en `agent._ajustar_args`; el modelo

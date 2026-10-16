@@ -115,6 +115,8 @@ def listar_tareas(
     limite: int = 50,
     periodo: str | None = None,
     dias: int | None = None,
+    desde: str | None = None,
+    hasta: str | None = None,
 ) -> dict:
     estado = (estado or "pendientes").strip().lower()
     where: list[str] = []
@@ -145,6 +147,14 @@ def listar_tareas(
                 "fecha_limite IS NOT NULL AND "
                 "datetime(fecha_limite) < datetime('now', 'localtime')"
             )
+        if desde or hasta:
+            where.append("fecha_limite IS NOT NULL")
+            if desde:
+                where.append("date(fecha_limite) >= date(?)")
+                params.append(parse_datetime(desde).date().isoformat())
+            if hasta:
+                where.append("date(fecha_limite) <= date(?)")
+                params.append(parse_datetime(hasta).date().isoformat())
     clause = ("WHERE " + " AND ".join(where)) if where else ""
     conn = _conn()
     try:
@@ -159,7 +169,11 @@ def listar_tareas(
     ahora = datetime.now()
     tareas: list[dict] = []
     for r in rows:
-        d = _row(r)
+        base = _row(r)
+        d = {
+            k: base[k]
+            for k in ("id", "titulo", "descripcion", "prioridad", "estado", "fecha_limite")
+        }
         fl = d.get("fecha_limite")
         d["faltan"] = None
         if fl:

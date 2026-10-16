@@ -172,7 +172,7 @@ def listar_eventos(
             params.append(datetime.now().isoformat())
         if hasta:
             where.append("inicio <= ?")
-            params.append(parse_datetime(hasta).isoformat())
+            params.append(parse_datetime(hasta, end_of_day=True).isoformat())
         elif pasados:
             where.append("inicio < ?")
             params.append(datetime.now().isoformat())
@@ -195,7 +195,11 @@ def listar_eventos(
     ahora = datetime.now()
     eventos: list[dict] = []
     for r in rows:
-        d = _row(r)
+        base = _row(r)
+        d = {
+            k: base[k]
+            for k in ("id", "titulo", "inicio", "fin", "todo_el_dia", "lugar", "notas", "estado")
+        }
         try:
             d["faltan"] = faltan_texto(datetime.fromisoformat(d["inicio"]), ahora)
         except (ValueError, TypeError):

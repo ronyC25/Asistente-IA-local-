@@ -105,8 +105,16 @@ def faltan_texto(objetivo: datetime, ahora: datetime | None = None) -> str:
     return f"en {base}" if futuro else f"hace {base}"
 
 
-def parse_datetime(value: str, future: bool = False) -> datetime:
-    """Parsea una fecha/hora ISO. Si future=True exige que sea en el futuro."""
+def _sin_hora(value: str) -> bool:
+    return ":" not in str(value)
+
+
+def parse_datetime(value: str, future: bool = False, end_of_day: bool = False) -> datetime:
+    """Parsea una fecha/hora ISO. Si future=True exige que sea en el futuro.
+
+    Si ``end_of_day=True`` y el valor no trae hora (p. ej. '2026-10-28'), se usa
+    el final de ese dia (23:59:59) para no excluir los eventos del propio dia.
+    """
     try:
         dt = dateparser.parse(str(value), fuzzy=False)
     except (ValueError, OverflowError, TypeError):
@@ -116,6 +124,8 @@ def parse_datetime(value: str, future: bool = False) -> datetime:
             f"fecha/hora no valida: {value!r}. Usa formato ISO "
             "(YYYY-MM-DD o YYYY-MM-DD HH:MM)."
         )
+    if end_of_day and _sin_hora(value):
+        dt = dt.replace(hour=23, minute=59, second=59, microsecond=0)
     if future and dt < datetime.now():
         raise ValueError(
             f"la fecha/hora {dt.isoformat(timespec='minutes')} ya paso."

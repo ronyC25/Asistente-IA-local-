@@ -96,6 +96,8 @@ def listar_recordatorios(
     vencidos: bool = False,
     periodo: str | None = None,
     dias: int | None = None,
+    desde: str | None = None,
+    hasta: str | None = None,
 ) -> dict:
     estado = (estado or "pendientes").strip().lower()
     if estado not in _ESTADO_FILTRO:
@@ -116,8 +118,15 @@ def listar_recordatorios(
         params.append(d.isoformat())
         conds.append("datetime(cuando) <= datetime(?)")
         params.append(h.isoformat())
-    elif vencidos:
-        conds.append("datetime(cuando) < datetime('now', 'localtime')")
+    else:
+        if desde:
+            conds.append("datetime(cuando) >= datetime(?)")
+            params.append(parse_datetime(desde).isoformat())
+        if hasta:
+            conds.append("datetime(cuando) <= datetime(?)")
+            params.append(parse_datetime(hasta, end_of_day=True).isoformat())
+        if vencidos:
+            conds.append("datetime(cuando) < datetime('now', 'localtime')")
     clause = ("WHERE " + " AND ".join(conds)) if conds else ""
     conn = _conn()
     try:
@@ -130,7 +139,11 @@ def listar_recordatorios(
     ahora = datetime.now()
     recs: list[dict] = []
     for r in rows:
-        d = _row(r)
+        base = _row(r)
+        d = {
+            k: base[k]
+            for k in ("id", "texto", "cuando", "canal", "recurrencia", "estado")
+        }
         try:
             d["faltan"] = faltan_texto(datetime.fromisoformat(d["cuando"]), ahora)
         except (ValueError, TypeError):

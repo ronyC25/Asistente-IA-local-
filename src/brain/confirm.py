@@ -3,7 +3,10 @@ from __future__ import annotations
 
 import re
 import unicodedata
+from datetime import date, timedelta
 from typing import Any
+
+from dateutil.relativedelta import relativedelta
 
 _YES = {
     "si",
@@ -248,6 +251,127 @@ def pregunta_cuanto_falta(text: str) -> bool:
         or "cuanto tiempo" in t
         or "falta para" in t
     )
+
+
+# --- fechas explicitas / rangos relativos ampliados ---
+def _norm_keep(text: str) -> str:
+    """Normaliza (minusculas, sin acentos) pero CONSERVANDO separadores (/,-,:)."""
+    text = unicodedata.normalize("NFKD", text or "")
+    text = text.encode("ascii", "ignore").decode("ascii")
+    return text.lower().strip()
+
+
+_MESES = {
+    "enero": 1,
+    "febrero": 2,
+    "marzo": 3,
+    "abril": 4,
+    "mayo": 5,
+    "junio": 6,
+    "julio": 7,
+    "agosto": 8,
+    "septiembre": 9,
+    "setiembre": 9,
+    "octubre": 10,
+    "noviembre": 11,
+    "diciembre": 12,
+}
+
+_NUMS = {
+    "un": 1,
+    "una": 1,
+    "uno": 1,
+    "dos": 2,
+    "tres": 3,
+    "cuatro": 4,
+    "cinco": 5,
+    "seis": 6,
+    "siete": 7,
+    "ocho": 8,
+    "nueve": 9,
+    "diez": 10,
+    "once": 11,
+    "doce": 12,
+    "quince": 15,
+}
+
+
+def _num(s: str) -> int | None:
+    s = s.lower()
+    return int(s) if s.isdigit() else _NUMS.get(s)
+
+
+def fecha_de_texto(text: str, hoy: date | None = None) -> date | None:
+    """Extrae una fecha explicita ('28 de octubre', '28/10/2026', '2026-10-28').
+
+    Si no se indica el ano y la fecha ya paso este ano, se usa el ano siguiente.
+    """
+    t = _norm_keep(text)
+    if not t:
+        return None
+    hoy = hoy or date.today()
+    m = re.search(r"\b(\d{4})-(\d{1,2})-(\d{1,2})\b", t)
+    if m:
+        try:
+            return date(int(m.group(1)), int(m.group(2)), int(m.group(3)))
+        except ValueError:
+            return None
+    m = re.search(r"\b(\d{1,2})/(\d{1,2})(?:/(\d{2,4}))?\b", t)
+    if m:
+        d, mo = int(m.group(1)), int(m.group(2))
+        y = int(m.group(3)) if m.group(3) else hoy.year
+        if y < 100:
+            y += 2000
+        try:
+            f = date(y, mo, d)
+        except ValueError:
+            return None
+        if not m.group(3) and f < hoy:
+            f = date(y + 1, mo, d)
+        return f
+    m = re.search(r"\b(\d{1,2})\s+de\s+([a-z]+)(?:\s+de\s+(\d{4}))?", t)
+    if m:
+        mo = _MESES.get(m.group(2))
+        if not mo:
+            return None
+        y = int(m.group(3)) if m.group(3) else hoy.year
+        try:
+            f = date(y, mo, int(m.group(1)))
+        except ValueError:
+            return None
+        if not m.group(3) and f < hoy:
+            f = date(y + 1, mo, int(m.group(1)))
+        return f
+    return None
+
+
+def rango_de_texto(text: str, hoy: date | None = None) -> tuple[date, date] | None:
+    """Rangos relativos ampliados: 'de aqui a N semanas/meses', 'en N dias'..."""
+    t = _norm_keep(text)
+    if not t:
+        return None
+    hoy = hoy or date.today()
+    m = re.search(
+        r"(de aqui a|en|proximas?|proximos?|siguientes?)\s+"
+        r"(\d{1,3}|un|una|uno|dos|tres|cuatro|cinco|seis|siete|ocho|nueve|diez|once|doce|quince)\s+"
+        r"(dias?|semanas?|meses?)",
+        t,
+    )
+    if not m:
+        return None
+    n = _num(m.group(2))
+    if not n:
+        return None
+    prefijo, unidad = m.group(1), m.group(3)
+    if unidad.startswith("dia"):
+        fin = hoy + timedelta(days=n)
+    elif unidad.startswith("semana"):
+        fin = hoy + timedelta(weeks=n)
+    else:  # mes
+        fin = hoy + relativedelta(months=n)
+    if prefijo == "en":
+        return (fin, fin)
+    return (hoy, fin)
 
 
 _HISTORIAL_WORDS = {

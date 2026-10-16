@@ -4,7 +4,7 @@ from datetime import datetime
 
 import pytest
 
-from src.timeutil import faltan_texto, resolver_periodo
+from src.timeutil import faltan_texto, parse_datetime, resolver_periodo
 
 
 def _jueves() -> datetime:
@@ -92,3 +92,11 @@ def test_faltan_texto():
     assert faltan_texto(datetime(2026, 10, 15, 10, 0), base) == "hace 1 h"
     assert faltan_texto(datetime(2026, 10, 18, 11, 0), base) == "en 3 d"
     assert faltan_texto(datetime(2026, 10, 15, 11, 30), base) == "en 30 min"
+
+
+def test_parse_datetime_end_of_day():
+    d = parse_datetime("2026-10-28", end_of_day=True)
+    assert (d.hour, d.minute, d.second) == (23, 59, 59)
+    # con hora explicita no se toca
+    d2 = parse_datetime("2026-10-28T10:00", end_of_day=True)
+    assert d2.hour == 10

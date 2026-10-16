@@ -1,10 +1,13 @@
 from __future__ import annotations
 
+from datetime import date
+
 import pytest
 
 from src.brain.confirm import (
     classify_confirmation,
     dominio_lectura,
+    fecha_de_texto,
     looks_like_action,
     looks_like_query,
     orden_de_texto,
@@ -12,6 +15,7 @@ from src.brain.confirm import (
     pregunta_cuanto_falta,
     quiere_historial_recordatorios,
     quiere_proximo,
+    rango_de_texto,
 )
 
 
@@ -158,3 +162,39 @@ def test_quiere_proximo():
 def test_pregunta_cuanto_falta():
     assert pregunta_cuanto_falta("cuanto falta para el proximo evento") is True
     assert pregunta_cuanto_falta("dame las tareas") is False
+
+
+@pytest.mark.parametrize(
+    "text,esperado",
+    [
+        ("el 28 de octubre", date(2026, 10, 28)),
+        ("28 de octubre de 2027", date(2027, 10, 28)),
+        ("28/10/2026", date(2026, 10, 28)),
+        ("2026-10-28", date(2026, 10, 28)),
+        ("dame las tareas", None),
+    ],
+)
+def test_fecha_de_texto(text, esperado):
+    assert fecha_de_texto(text, hoy=date(2026, 10, 16)) == esperado
+
+
+def test_fecha_de_texto_rollover():
+    # 5 de enero ya paso (hoy 16 oct 2026) -> 2027
+    assert fecha_de_texto("5 de enero", hoy=date(2026, 10, 16)) == date(2027, 1, 5)
+
+
+def test_rango_de_texto():
+    hoy = date(2026, 10, 16)
+    assert rango_de_texto("de aqui a dos semanas", hoy=hoy) == (
+        date(2026, 10, 16),
+        date(2026, 10, 30),
+    )
+    assert rango_de_texto("en 3 dias", hoy=hoy) == (
+        date(2026, 10, 19),
+        date(2026, 10, 19),
+    )
+    assert rango_de_texto("proximas 2 semanas", hoy=hoy) == (
+        date(2026, 10, 16),
+        date(2026, 10, 30),
+    )
+    assert rango_de_texto("dame las tareas", hoy=hoy) is None

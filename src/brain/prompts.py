@@ -86,5 +86,8 @@ listar_eventos con orden="antiguos" y limite=1. Para "cuanto falta" usa el campo
 'faltan' que devuelve la herramienta (NO calcules tu las horas). Para crear una lista \
 con elementos usa gestionar_listas(accion="crear", nombre=..., items=[...]) en UNA \
 llamada: no digas que agregaste elementos sin haber llamado a la herramienta.
+18. Para fechas concretas ("el 28 de octubre", "28/10/2026") pasa 'desde' y 'hasta' con \
+esa fecha (la misma en ambos). Para rangos como "de aqui a dos semanas" o "en 3 dias" \
+pasa 'desde'/'hasta' con el rango. No calcules mal el ano: usa el que corresponde.
 
 Se breve: responde en una o dos frases salvo que se pida detalle."""

@@ -122,3 +122,14 @@ def test_listar_proximo_tiene_faltan():
     r = calendar.listar_eventos(limite=1)
     assert r["eventos"][0]["titulo"] == "Proximo"
     assert r["eventos"][0]["faltan"].startswith("en")
+
+
+def test_listar_evento_mismo_dia():
+    dia = (datetime.now() + timedelta(days=5)).replace(
+        hour=10, minute=0, second=0, microsecond=0
+    )
+    calendar.crear_evento("EventoDia", dia.isoformat())
+    fecha = dia.date().isoformat()
+    r = calendar.listar_eventos(desde=fecha, hasta=fecha)
+    assert r["total"] == 1
+    assert r["eventos"][0]["titulo"] == "EventoDia"

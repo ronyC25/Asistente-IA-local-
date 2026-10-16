@@ -10,6 +10,7 @@ from .confirm import (
     build_proposal,
     classify_confirmation,
     dominio_lectura,
+    fecha_de_texto,
     looks_like_action,
     looks_like_query,
     orden_de_texto,
@@ -17,6 +18,7 @@ from .confirm import (
     pregunta_cuanto_falta,
     quiere_historial_recordatorios,
     quiere_proximo,
+    rango_de_texto,
 )
 from .registry import Registry
 
@@ -57,32 +59,74 @@ _DOMINIO_TOOL = {
 }
 
 
+def _fechas_de_texto(user_text: str) -> dict:
+    """Argumentos de fecha (periodo/dias o desde/hasta) resueltos en codigo."""
+    periodo = periodo_de_texto(user_text)
+    if periodo:
+        p, n = periodo
+        d: dict = {"periodo": p}
+        if n is not None:
+            d["dias"] = n
+        return d
+    f = fecha_de_texto(user_text)
+    if f:
+        return {"desde": f.isoformat(), "hasta": f.isoformat()}
+    r = rango_de_texto(user_text)
+    if r:
+        return {"desde": r[0].isoformat(), "hasta": r[1].isoformat()}
+    return {}
+
+
+def _merge_fechas(args: dict, fechas: dict) -> dict:
+    if not fechas:
+        return args
+    if "periodo" in fechas:
+        args["periodo"] = fechas["periodo"]
+        if "dias" in fechas:
+            args["dias"] = fechas["dias"]
+        args.pop("desde", None)
+        args.pop("hasta", None)
+    else:
+        args["desde"] = fechas["desde"]
+        args["hasta"] = fechas["hasta"]
+        args.pop("periodo", None)
+        args.pop("dias", None)
+    return args
+
+
 def _args_dominio(dominio: str, user_text: str | None) -> dict:
     """Argumentos por defecto para la lectura forzada de un dominio."""
     txt = user_text or ""
     t = txt.lower()
     if dominio == "tareas":
-        if any(w in t for w in ("todas", "todos", "base de datos", "completad")):
-            return {"estado": "todas"}
-        return {}
-    if dominio == "recordatorios":
-        est = "historial" if quiere_historial_recordatorios(txt) else "pendientes"
-        return {"estado": est}
-    if dominio == "notas":
-        args: dict = {"accion": "listar"}
-        if orden_de_texto(txt) == "antiguas":
-            args["orden"] = "antiguas"
-            args["limite"] = 1
-        return args
-    if dominio == "listas":
-        return {"accion": "listar"}
+        args = {"estado": "todas"} if any(
+            w in t for w in ("todas", "todos", "base de datos", "completad")
+        ) else {}
+    elif dominio == "recordatorios":
+        args = {"estado": "historial" if quiere_historial_recordatorios(txt) else "pendientes"}
+    elif dominio == "notas":
+        args = {"accion": "listar"}
+    elif dominio == "listas":
+        args = {"accion": "listar"}
+    else:
+        args = {}
+
+    if dominio == "notas" and orden_de_texto(txt) == "antiguas":
+        args["orden"] = "antiguas"
+        args["limite"] = 1
     if dominio == "eventos":
-        if quiere_proximo(txt) or pregunta_cuanto_falta(txt):
-            return {"limite": 1}
         if orden_de_texto(txt) == "antiguas":
-            return {"orden": "antiguos", "limite": 1}
-        return {}
-    return {}
+            args["orden"] = "antiguos"
+            args["limite"] = 1
+
+    if dominio in ("tareas", "recordatorios", "notas", "eventos"):
+        fechas = _fechas_de_texto(txt)
+        _merge_fechas(args, fechas)
+        if dominio == "eventos" and "periodo" not in fechas and (
+            quiere_proximo(txt) or pregunta_cuanto_falta(txt)
+        ):
+            args.setdefault("limite", 1)
+    return args
 
 
 def partition_calls(
@@ -154,7 +198,7 @@ class Agent:
         """
         if not user_text:
             return parsed
-        periodo = periodo_de_texto(user_text)
+        fechas = _fechas_de_texto(user_text)
         orden = orden_de_texto(user_text)
         proximo = quiere_proximo(user_text)
         falta = pregunta_cuanto_falta(user_text)
@@ -167,13 +211,8 @@ class Agent:
                     quiere_historial_recordatorios(user_text)
                 ):
                     args["estado"] = "historial"
-            if periodo and name in _TOOLS_CON_PERIODO:
-                p, n = periodo
-                args["periodo"] = p
-                if n is not None:
-                    args["dias"] = n
-                args.pop("desde", None)
-                args.pop("hasta", None)
+            if name in _TOOLS_CON_PERIODO and fechas:
+                _merge_fechas(args, fechas)
             if orden and name == "consultar_notas":
                 args["orden"] = "antiguas" if orden == "antiguas" else "recientes"
                 if orden == "antiguas":
@@ -182,7 +221,7 @@ class Agent:
                 if orden == "antiguas":
                     args["orden"] = "antiguos"
                     args.setdefault("limite", 1)
-                if (proximo or falta) and not periodo:
+                if (proximo or falta) and not fechas:
                     args.setdefault("limite", 1)
             if name == "listar_recordatorios" and falta:
                 args.setdefault("limite", 1)
@@ -280,6 +319,7 @@ class Agent:
         user_text: str | None = None,
         stage: int = 0,
         think: bool = False,
+        retry_empty: bool = True,
     ) -> tuple[str, dict | None]:
         saw_write = False
         saw_tool = False
@@ -338,6 +378,25 @@ class Agent:
                         return self._run_loop(
                             session, user_text=None, stage=stage + 1, think=False
                         )
+                # El modelo a veces devuelve contenido vacio (p. ej. tras una lectura
+                # grande): reintentamos una vez pidiendole el resumen.
+                if not content.strip() and retry_empty:
+                    session.messages.append(
+                        {
+                            "role": "system",
+                            "content": (
+                                "Resume en lenguaje natural la informacion de las "
+                                "herramientas anteriores. No devuelvas una respuesta vacia."
+                            ),
+                        }
+                    )
+                    return self._run_loop(
+                        session,
+                        user_text=None,
+                        stage=stage + 1,
+                        think=False,
+                        retry_empty=False,
+                    )
                 session.messages.append({"role": "assistant", "content": content})
                 return content, None
 

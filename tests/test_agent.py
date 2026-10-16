@@ -267,10 +267,10 @@ def test_ajustar_args_periodo_manana():
     assert out == [("listar_eventos", {"periodo": "manana"})]
 
 
-def test_ajustar_args_sin_periodo_no_toca_fechas():
+def test_ajustar_args_sin_fechas_no_toca():
     agent = Agent(_registry(), model="dummy", system_prompt="sys")
     parsed = [("listar_eventos", {"desde": "2026-10-20"})]
-    out = agent._ajustar_args(parsed, "eventos del 20 de octubre")
+    out = agent._ajustar_args(parsed, "que eventos tengo")
     assert out == [("listar_eventos", {"desde": "2026-10-20"})]
 
 
@@ -368,3 +368,21 @@ def test_ajustar_args_notas_periodo():
     parsed = [("consultar_notas", {"accion": "listar"})]
     out = agent._ajustar_args(parsed, "dame las notas de esta semana")
     assert dict(out)["consultar_notas"].get("periodo") == "esta_semana"
+
+
+def test_ajustar_args_fecha_explicita():
+    agent = Agent(_registry(), model="dummy", system_prompt="sys")
+    parsed = [("listar_eventos", {})]
+    out = agent._ajustar_args(parsed, "que eventos hay el 28 de octubre")
+    d = dict(out)["listar_eventos"]
+    assert d.get("desde") and d.get("hasta")
+    assert d["desde"] == d["hasta"]
+
+
+def test_ajustar_args_rango_semanas():
+    agent = Agent(_registry(), model="dummy", system_prompt="sys")
+    parsed = [("listar_eventos", {})]
+    out = agent._ajustar_args(parsed, "eventos de aqui a dos semanas")
+    d = dict(out)["listar_eventos"]
+    assert d.get("desde") and d.get("hasta")
+    assert d["desde"] != d["hasta"]
