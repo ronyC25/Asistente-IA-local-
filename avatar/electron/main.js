@@ -3,6 +3,9 @@ const { app, BrowserWindow, ipcMain, Menu, screen, session } = require("electron
 const fs = require("fs");
 const path = require("path");
 
+// Sin cache HTTP: el overlay siempre carga la version actual de index.html/main.js.
+app.commandLine.appendSwitch("disable-http-cache");
+
 const URL = process.env.JARVIS_URL || "http://127.0.0.1:8000/avatar/";
 const W = 420;
 const H = 640;
@@ -157,8 +160,13 @@ ipcMain.on("drag-end", (event) => {
   savePos();
 });
 
-app.whenReady().then(() => {
+app.whenReady().then(async () => {
   Menu.setApplicationMenu(null);
+  try {
+    await session.defaultSession.clearCache();
+  } catch (e) {
+    /* ignore */
+  }
   // Permitir microfono (necesario para la voz en el overlay).
   session.defaultSession.setPermissionRequestHandler((_wc, permission, callback) => {
     callback(permission === "media" || permission === "audioCapture");
