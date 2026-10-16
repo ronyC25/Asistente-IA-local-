@@ -7,8 +7,8 @@ const path = require("path");
 app.commandLine.appendSwitch("disable-http-cache");
 
 const URL = process.env.JARVIS_URL || "http://127.0.0.1:8000/avatar/";
-const W = 420;
-const H = 640;
+const W = 380;
+const H = 500;
 const MARGIN = 30;
 const POS_FILE = path.join(__dirname, "..", "..", "data", "avatar_pos.json");
 

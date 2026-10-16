@@ -158,8 +158,10 @@ Requisitos: Ollama en ejecucion con `qwen3:8b` (`ollama pull qwen3:8b`).
   ParamMouthOpenY`, expresiones `f00..f07`) y **Wanko** (Cubism 3, perrito chibi,
   `LipSync = PARAM_MOUTH_OPEN_Y`, **sin expresiones**). El parametro de boca se
   **auto-detecta** del grupo `LipSync` del `model3.json`.
-- **Tamano**: `avatar.scale` en `settings.yaml` (0.55 por defecto). **Selector** de
-  avatar en la barra (persistido en `localStorage`).
+- **Tamano**: `avatar.height` en `settings.yaml` (alto del avatar en px; 350 por
+  defecto). La ventana del overlay se ajusta a ese alto (abraza al avatar, sin
+  espacio vacio arriba). **Selector** de avatar en la barra (persistido en
+  `localStorage`).
 - **Overlay**: `avatar/electron/` (ventana transparente, siempre visible,
   click-through con `setIgnoreMouseEvents(forward)`). **Arrastrable** por el handle
   (⠿) de la barra de estado (arrastre custom por IPC); la **posicion se guarda** en

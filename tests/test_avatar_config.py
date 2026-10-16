@@ -13,7 +13,7 @@ def test_avatar_config_endpoint():
     assert r.status_code == 200
     data = r.json()
     assert data["default"] == settings.avatar["model"]
-    assert isinstance(data["scale"], (int, float))
+    assert isinstance(data["height"], int)
     assert data["lipsync_profile"] == "public/lipsync/profile.json"
     names = {m["name"] for m in data["models"]}
     assert "Haru" in names
@@ -26,4 +26,4 @@ def test_avatar_settings_models():
     assert "Haru" in models
     assert "Wanko" in models
     assert all(p.endswith(".model3.json") for p in models.values())
-    assert 0 < settings.avatar["scale"] <= 1
+    assert settings.avatar["height"] > 0

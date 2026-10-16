@@ -69,7 +69,7 @@ class Settings:
             "model_path": models.get(default_model)
             or avatar.get("model_path")
             or next(iter(models.values()), None),
-            "scale": float(avatar.get("scale", 1.0)),
+            "height": int(avatar.get("height", 350)),
             "half_duplex": bool(avatar.get("half_duplex", True)),
         }
 

@@ -131,7 +131,7 @@ def avatar_config() -> dict:
         models.append({"name": name, "path": rel})
     return {
         "default": av.get("model"),
-        "scale": av.get("scale", 1.0),
+        "height": av.get("height", 350),
         "lipsync_profile": "public/lipsync/profile.json",
         "models": models,
     }

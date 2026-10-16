@@ -86,11 +86,11 @@ cd avatar; npm start                             # overlay de escritorio
 - En Electron: ventana transparente siempre visible; el personaje responde por voz
   (micrófono del navegador + wake word "hey jarvis") y mueve los labios con lo que habla.
 - **Avatares**: selector en la barra (**Haru**, **Wanko**); el elegido se recuerda.
-  Configurables en `config/settings.yaml` (`avatar.models`, `avatar.model`, `avatar.scale`).
+  Configurables en `config/settings.yaml` (`avatar.models`, `avatar.model`, `avatar.height`).
 - **Mover / tamano**: arrastra el avatar por el handle **⠿** de la barra de estado
   (la posición se recuerda en `data/avatar_pos.json`); menú contextual (clic derecho):
   *Centrar*, *Esquina inferior derecha*, *Restablecer posición*. El tamaño se ajusta con
-  `avatar.scale` (por defecto 0.55).
+  `avatar.height` (alto en px, por defecto 350).
 
 Escribe (o di) cosas como:
 

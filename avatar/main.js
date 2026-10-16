@@ -5,10 +5,13 @@ import { createWLipSyncNode } from "./vendor/wlipsync-single.js";
 const CONFIG = {
   wsUrl: `${location.protocol === "https:" ? "wss" : "ws"}://${location.host}/ws`,
   lipsyncProfile: "public/lipsync/profile.json",
-  scale: 0.55,
+  height: 350,
   defaultModel: "Haru",
   models: [],
 };
+
+// Espacio reservado abajo para la barra de chat (px).
+const RESERVE_BOTTOM = 132;
 
 // Fallback si /avatar/config no esta disponible (p. ej. backend antiguo).
 const FALLBACK_MODELS = [
@@ -74,7 +77,7 @@ async function loadConfig() {
   } catch (e) {
     console.warn("[avatar] /avatar/config no disponible; uso la lista por defecto", e);
   }
-  CONFIG.scale = cfg && typeof cfg.scale === "number" ? cfg.scale : 0.55;
+  CONFIG.height = cfg && typeof cfg.height === "number" ? cfg.height : 350;
   CONFIG.models = cfg && cfg.models && cfg.models.length ? cfg.models : FALLBACK_MODELS;
   CONFIG.defaultModel = (cfg && cfg.default) || CONFIG.models[0].name;
   if (cfg && cfg.lipsync_profile) CONFIG.lipsyncProfile = cfg.lipsync_profile;
@@ -145,11 +148,13 @@ function fitModel() {
   if (!model) return;
   const w = window.innerWidth;
   const h = window.innerHeight;
-  const fit = Math.min((h * 0.96) / model.height, (w * 0.96) / model.width);
-  model.scale.set(fit * CONFIG.scale);
+  const availH = h - RESERVE_BOTTOM - 16;
+  const targetH = Math.min(CONFIG.height, availH);
+  const s = Math.min(targetH / model.height, (w * 0.94) / model.width);
+  model.scale.set(s);
   model.anchor.set(0.5, 1);
   model.x = w / 2;
-  model.y = h;
+  model.y = h - RESERVE_BOTTOM;
 }
 
 // ---------------------------------------------------------------- Lip-sync
