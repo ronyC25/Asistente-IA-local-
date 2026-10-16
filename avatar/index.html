@@ -58,7 +58,12 @@
       display: flex; align-items: center; gap: 8px;
       background: rgba(11,16,32,.6); border: 1px solid #2a3a63; border-radius: 10px;
       padding: 6px 10px; font-size: 12px; color: var(--text);
-      -webkit-app-region: drag; cursor: move;
+    }
+    #grip { cursor: move; padding: 0 4px; color: #8b97b3; font-size: 15px; line-height: 1; }
+    #grip:hover { color: var(--accent); }
+    #modelSel {
+      background: #1b2440; border: 1px solid #2a3a63; color: var(--text);
+      border-radius: 10px; padding: 8px 10px; font-size: 13px; outline: none;
     }
     #dot { width: 9px; height: 9px; border-radius: 50%; background: #6b7899; }
     #dot.idle { background: #6b7899; }
@@ -76,7 +81,7 @@
     <div class="hint">Pulsa para activar el asistente (voz y sincronizacion de labios)</div>
   </div>
 
-  <div id="status"><span id="dot" class="idle"></span><span id="statetext">iniciando...</span></div>
+  <div id="status"><span id="grip" title="Arrastrar">&#10287;</span><span id="dot" class="idle"></span><span id="statetext">iniciando...</span></div>
 
   <div id="bar">
     <div id="subtitle">Cargando avatar...</div>
@@ -85,6 +90,7 @@
       <button class="no" data-answer="no">No, cancelar</button>
     </div>
     <div id="row">
+      <select id="modelSel" title="Avatar"></select>
       <button id="mic" class="on" title="Activar/desactivar microfono">Mic ON</button>
       <input id="input" type="text" placeholder="Escribe o di 'hey jarvis'..." autocomplete="off" />
       <button id="send">Enviar</button>

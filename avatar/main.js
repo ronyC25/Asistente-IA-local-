@@ -1,13 +1,18 @@
 // Avatar Live2D de Jarvis: Pixi + pixi-live2d-display + wLipSync + WebSocket + microfono.
-// Modelo: Haru (Cubism 4, LipSync = ParamMouthOpenY).
+// Multi-modelo: la lista y la escala se leen de /avatar/config (backend).
 import { createWLipSyncNode } from "./vendor/wlipsync-single.js";
 
 const CONFIG = {
   wsUrl: `${location.protocol === "https:" ? "wss" : "ws"}://${location.host}/ws`,
-  modelPath: "public/models/Haru/haru_greeter_t03.model3.json",
   lipsyncProfile: "public/lipsync/profile.json",
-  // Mapa emocion -> expresion de Haru (f00..f07)
-  emotionMap: {
+  scale: 1,
+  defaultModel: "Haru",
+  models: [],
+};
+
+// Mapa emocion -> expresion por modelo (solo los que tienen expresiones).
+const EMOTION_MAPS = {
+  Haru: {
     joy: "f01",
     happy: "f01",
     excited: "f02",
@@ -21,7 +26,7 @@ const CONFIG = {
     neutral: null,
     thinking: null,
   },
-  clickExpressions: ["f00", "f01", "f02", "f03", "f04", "f05", "f06", "f07"],
+  Wanko: {}, // sin expresiones (solo idle + parpadeo)
 };
 
 const $ = (id) => document.getElementById(id);
@@ -33,8 +38,11 @@ const sendBtn = $("send");
 const micBtn = $("mic");
 const startBox = $("start");
 const startBtn = $("startBtn");
+const modelSel = $("modelSel");
+const grip = $("grip");
 
-let app, model;
+let app, model, currentModelName = null;
+let mouthIds = ["ParamMouthOpenY"];
 let ws, wsReady = false;
 let wsFails = 0;
 let audioCtx, lipsyncNode, silentGain;
@@ -50,6 +58,22 @@ function fail(step, err) {
   subtitle.textContent = `Error en ${step}: ${name}${msg}`;
 }
 
+// ---------------------------------------------------------------- Config
+async function loadConfig() {
+  const cfg = await fetch("/avatar/config").then((r) => r.json());
+  CONFIG.scale = typeof cfg.scale === "number" ? cfg.scale : 1;
+  CONFIG.models = cfg.models || [];
+  CONFIG.defaultModel = cfg.default || (CONFIG.models[0] && CONFIG.models[0].name);
+  if (cfg.lipsync_profile) CONFIG.lipsyncProfile = cfg.lipsync_profile;
+  modelSel.innerHTML = "";
+  for (const m of CONFIG.models) {
+    const opt = document.createElement("option");
+    opt.value = m.name;
+    opt.textContent = m.name;
+    modelSel.appendChild(opt);
+  }
+}
+
 // ---------------------------------------------------------------- Pixi + Live2D
 async function initPixi() {
   window.PIXI = PIXI;
@@ -60,22 +84,56 @@ async function initPixi() {
     resizeTo: window,
     antialias: true,
   });
-  model = await PIXI.live2d.Live2DModel.from(CONFIG.modelPath);
-  app.stage.addChild(model);
-  fitModel();
   window.addEventListener("resize", fitModel);
+  app.ticker.add(applyMouth);
+}
+
+async function detectMouthIds(modelPath) {
+  try {
+    const data = await fetch(modelPath).then((r) => r.json());
+    const lip = (data.Groups || []).find(
+      (g) => (g.Name || "").toLowerCase() === "lipsync"
+    );
+    if (lip && Array.isArray(lip.Ids) && lip.Ids.length) return lip.Ids;
+  } catch (e) {
+    /* usa el fallback */
+  }
+  return ["ParamMouthOpenY"];
+}
+
+async function loadModel(name, path) {
+  if (model) {
+    app.stage.removeChild(model);
+    model.destroy();
+    model = null;
+  }
+  model = await PIXI.live2d.Live2DModel.from(path);
+  app.stage.addChild(model);
+  mouthIds = await detectMouthIds(path);
+  currentModelName = name;
+  fitModel();
   const im = model.internalModel;
-  const hook = () => applyMouth();
-  if (im && typeof im.on === "function") im.on("beforeModelUpdate", hook);
-  app.ticker.add(hook);
+  if (im && typeof im.on === "function") im.on("beforeModelUpdate", applyMouth);
+  if (modelSel.value !== name) modelSel.value = name;
+}
+
+async function applyModel(name) {
+  const m = CONFIG.models.find((x) => x.name === name) || CONFIG.models[0];
+  if (!m) return;
+  try {
+    await loadModel(m.name, m.path);
+    localStorage.setItem("jarvis.model", m.name);
+  } catch (e) {
+    fail("modelo", e);
+  }
 }
 
 function fitModel() {
   if (!model) return;
   const w = window.innerWidth;
   const h = window.innerHeight;
-  const scale = Math.min((h * 0.96) / model.height, (w * 0.96) / model.width);
-  model.scale.set(scale);
+  const fit = Math.min((h * 0.96) / model.height, (w * 0.96) / model.width);
+  model.scale.set(fit * CONFIG.scale);
   model.anchor.set(0.5, 1);
   model.x = w / 2;
   model.y = h;
@@ -105,19 +163,35 @@ function applyMouth() {
   if (!model || !lipsyncNode || !model.internalModel) return;
   const core = model.internalModel.coreModel;
   const vol = Math.min(1, (lipsyncNode.volume || 0) * 1.8);
-  setParam(core, "ParamMouthOpenY", vol);
+  for (const id of mouthIds) setParam(core, id, vol);
   const w = lipsyncNode.weights || {};
   const abierta = (w.I || 0) + (w.E || 0);
   const redonda = (w.O || 0) + (w.U || 0);
   setParam(core, "ParamMouthForm", Math.max(-1, Math.min(1, abierta - redonda)), -1, 1);
 }
 
-function setExpression(name) {
-  if (!model || !name) return;
+function setExpression(emotion) {
+  if (!model) return;
+  const name = (EMOTION_MAPS[currentModelName] || {})[emotion];
+  if (!name) return;
   try {
     model.expression(name);
   } catch (e) {
     /* expresion inexistente */
+  }
+}
+
+function onClickModel() {
+  if (!model) return;
+  const names = [...new Set(Object.values(EMOTION_MAPS[currentModelName] || {}).filter(Boolean))];
+  try {
+    if (names.length) {
+      model.expression(names[Math.floor(Math.random() * names.length)]);
+    } else {
+      model.motion("TapBody");
+    }
+  } catch (e) {
+    /* sin expresiones ni motions */
   }
 }
 
@@ -248,7 +322,7 @@ function handleMessage(msg) {
       subtitle.innerHTML = `<span class="who">Jarvis:</span> ${escapeHtml(msg.text)}`;
       break;
     case "expression":
-      setExpression(CONFIG.emotionMap[msg.value] || null);
+      setExpression(msg.value);
       break;
     case "pending":
       confirmBox.style.display = msg.active ? "flex" : "none";
@@ -286,14 +360,41 @@ micBtn.addEventListener("click", () => {
   micBtn.classList.toggle("on", micEnabled);
   micBtn.textContent = micEnabled ? "Mic ON" : "Mic OFF";
 });
+modelSel.addEventListener("change", () => applyModel(modelSel.value));
 
 window.addEventListener("pointermove", (e) => {
   if (model && typeof model.focus === "function") model.focus(e.clientX, e.clientY);
 });
-$("canvas").addEventListener("click", () => {
-  const arr = CONFIG.clickExpressions;
-  setExpression(arr[Math.floor(Math.random() * arr.length)]);
+$("canvas").addEventListener("click", onClickModel);
+
+// ---------------------------------------------------------------- Arrastre del overlay
+let dragging = false, lastX = 0, lastY = 0;
+grip.addEventListener("pointerdown", (e) => {
+  const api = window.jarvisAPI;
+  if (!api || !api.beginDrag) return;
+  dragging = true;
+  lastX = e.screenX;
+  lastY = e.screenY;
+  try { grip.setPointerCapture(e.pointerId); } catch (_) {}
+  api.beginDrag();
 });
+grip.addEventListener("pointermove", (e) => {
+  if (!dragging) return;
+  const api = window.jarvisAPI;
+  const dx = e.screenX - lastX;
+  const dy = e.screenY - lastY;
+  lastX = e.screenX;
+  lastY = e.screenY;
+  if (api && api.drag) api.drag(dx, dy);
+});
+function endDrag() {
+  if (!dragging) return;
+  dragging = false;
+  const api = window.jarvisAPI;
+  if (api && api.endDrag) api.endDrag();
+}
+grip.addEventListener("pointerup", endDrag);
+grip.addEventListener("pointercancel", endDrag);
 
 // ---------------------------------------------------------------- Overlay Electron
 function overlaySetInteractive(on) {
@@ -307,7 +408,9 @@ function setupOverlayAfterStart() {
   [$("bar"), $("status")].forEach((el) => {
     if (!el) return;
     el.addEventListener("mouseenter", () => api.setIgnore(false));
-    el.addEventListener("mouseleave", () => api.setIgnore(true));
+    el.addEventListener("mouseleave", () => {
+      if (!dragging) api.setIgnore(true);
+    });
   });
   api.setIgnore(true);
 }
@@ -334,7 +437,17 @@ async function start() {
 async function boot() {
   startBtn.addEventListener("click", start);
   try {
+    await loadConfig();
+  } catch (e) { fail("config", e); }
+  try {
     await initPixi();
+  } catch (e) { fail("pixi", e); return; }
+  const saved = localStorage.getItem("jarvis.model");
+  const initial = CONFIG.models.find((m) => m.name === saved)
+    ? saved
+    : CONFIG.defaultModel;
+  try {
+    await applyModel(initial);
   } catch (e) { fail("modelo", e); return; }
   try {
     connect();

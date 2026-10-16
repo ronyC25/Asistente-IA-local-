@@ -115,6 +115,28 @@ def tts_endpoint(req: TtsRequest) -> Response:
     return Response(content=wav, media_type="audio/wav")
 
 
+@app.get("/avatar/config")
+def avatar_config() -> dict:
+    """Configuracion del avatar para el frontend (modelos, escala, perfil lipsync)."""
+    from pathlib import Path
+
+    av = settings.avatar
+    base = ROOT / "avatar"
+    models = []
+    for name, path in (av.get("models") or {}).items():
+        try:
+            rel = Path(path).resolve().relative_to(base).as_posix()
+        except ValueError:
+            rel = Path(path).name
+        models.append({"name": name, "path": rel})
+    return {
+        "default": av.get("model"),
+        "scale": av.get("scale", 1.0),
+        "lipsync_profile": "public/lipsync/profile.json",
+        "models": models,
+    }
+
+
 def run() -> None:
     import uvicorn
 

@@ -71,7 +71,7 @@ Copy-Item .env.example .env
 
 Requiere los assets (una vez) y Electron instalados:
 ```powershell
-# 1) Descargar librerias + modelo Haru
+# 1) Descargar librerias + modelos (Haru y Wanko)
 powershell -ExecutionPolicy Bypass -File avatar\setup_assets.ps1
 
 # 2) Instalar Electron
@@ -85,6 +85,12 @@ cd avatar; npm start                             # overlay de escritorio
 - En el navegador: `http://127.0.0.1:8000/avatar/`
 - En Electron: ventana transparente siempre visible; el personaje responde por voz
   (micrófono del navegador + wake word "hey jarvis") y mueve los labios con lo que habla.
+- **Avatares**: selector en la barra (**Haru**, **Wanko**); el elegido se recuerda.
+  Configurables en `config/settings.yaml` (`avatar.models`, `avatar.model`, `avatar.scale`).
+- **Mover / tamano**: arrastra el avatar por el handle **⠿** de la barra de estado
+  (la posición se recuerda en `data/avatar_pos.json`); menú contextual (clic derecho):
+  *Centrar*, *Esquina inferior derecha*, *Restablecer posición*. El tamaño se ajusta con
+  `avatar.scale` (por defecto 0.55).
 
 Escribe (o di) cosas como:
 

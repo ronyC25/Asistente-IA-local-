@@ -70,9 +70,9 @@ web/index.html       # UI de chat en el navegador
 avatar/              # app Live2D + overlay Electron (Fase 7)
   index.html main.js #   escena Live2D + WebSocket + microfono + lip-sync
   electron/          #   ventana overlay transparente y click-through
-  setup_assets.ps1   #   descarga librerias + modelo Haru (no versionados)
+  setup_assets.ps1   #   descarga librerias + modelos Haru/Wanko (no versionados)
 start*.ps1           # lanzadores (venv + modos + start-all + auth)
-tests/               # 180 tests (pytest)
+tests/               # 182 tests (pytest)
 ```
 
 ## Herramientas del agente (23)
@@ -153,21 +153,31 @@ Requisitos: Ollama en ejecucion con `qwen3:8b` (`ollama pull qwen3:8b`).
   agente -> Piper) y `POST /tts` (WAV). El parser `src/brain/emotions.py` extrae
   etiquetas `[joy]`... para expresiones.
 - **Frontend**: `avatar/` (Pixi 7 + pixi-live2d-display + Cubism Core 4.2.2 + wLipSync),
-  servido en `/avatar/`. Modelo: **Haru** (ejemplo oficial, **Cubism 4**,
-  `LipSync = ParamMouthOpenY`).
+  servido en `/avatar/`. **Multi-modelo** (Cubism 2.1/3/4): la lista y la escala se leen
+  de `GET /avatar/config` (backend). Avatares: **Haru** (Cubism 3, `LipSync =
+  ParamMouthOpenY`, expresiones `f00..f07`) y **Wanko** (Cubism 3, perrito chibi,
+  `LipSync = PARAM_MOUTH_OPEN_Y`, **sin expresiones**). El parametro de boca se
+  **auto-detecta** del grupo `LipSync` del `model3.json`.
+- **Tamano**: `avatar.scale` en `settings.yaml` (0.55 por defecto). **Selector** de
+  avatar en la barra (persistido en `localStorage`).
 - **Overlay**: `avatar/electron/` (ventana transparente, siempre visible,
-  click-through con `setIgnoreMouseEvents(forward)`).
+  click-through con `setIgnoreMouseEvents(forward)`). **Arrastrable** por el handle
+  (⠿) de la barra de estado (arrastre custom por IPC); la **posicion se guarda** en
+  `data/avatar_pos.json` y el menu contextual permite *Centrar / Esquina inf. derecha
+  / Restablecer*.
 - **Requisito**: el overlay/navegador necesita el **servidor web** (`--web`) corriendo
   (sirve `/avatar/`, `/ws` y `/tts`). El modo `--telegram` NO sirve el avatar.
   Para levantar todo de una vez: `.\start-all.ps1`.
 - **Arranque por gesto**: boton "Iniciar" (necesario para `AudioContext`/wLipSync/micro).
 - **Assets** (no versionados): descargar con `avatar/setup_assets.ps1`
-  (librerias JS, Cubism Core, perfil wLipSync y modelo Haru). Electron via `npm install`.
+  (librerias JS, Cubism Core, perfil wLipSync y modelos **Haru** y **Wanko**).
+  Electron via `npm install`.
 
 ### Protocolo `/ws`
 - Entrada: binario PCM int16 16 kHz (microfono) + JSON `{"type":"text"|"mic"|"barge_in"}`.
 - Salida: `{"type":"state","value":...}`, `{"type":"reply","text":...}`,
   `{"type":"expression","value":...}`, `{"type":"pending","active":bool}`, y WAV binario.
+- `GET /avatar/config`: modelos disponibles, avatar por defecto, escala y perfil wLipSync.
 
 ## Bot de Telegram (bidireccional)
 
@@ -263,7 +273,9 @@ aplicacion** (requiere verificacion en 2 pasos).
   HTTP 410 se hace resync completo). Solo sincroniza mientras la app esta abierta.
 - **Avatar**: los assets (`avatar/vendor`, `avatar/public/models`, `node_modules`)
   no se versionan; usar `avatar/setup_assets.ps1`. El lip-sync usa el perfil de
-  ejemplo de wLipSync. Modelo **Haru** = Cubism 4 (compatible con el Core 4.2.2).
+  ejemplo de wLipSync y el parametro se lee del grupo `LipSync` del modelo.
+  **Haru** y **Wanko** son Cubism 3 (`moc3` v1) → compatibles con el Core 4.2.2.
+  Wanko no tiene expresiones (las etiquetas de emocion solo afectan a Haru).
 - **Modelo Mao (Cubism 5) = mejora futura (Opcion 2)**: `moc3` v5 no lo lee el
   Core 4.2.2 ni `pixi-live2d-display` 0.4. Requiere render Cubism 5 (Pixi 8, p. ej.
   `pixi-live2d5`) + Cubism Core 6.0.1; a cambio da lip-sync por vocales (A/I/U/E/O).

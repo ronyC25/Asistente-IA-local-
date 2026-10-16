@@ -55,12 +55,21 @@ class Settings:
         }
 
         avatar = data.get("avatar", {}) or {}
+        models = avatar.get("models") or {
+            "Haru": "avatar/public/models/Haru/haru_greeter_t03.model3.json"
+        }
+        models = {
+            name: (p if os.path.isabs(p) else str((ROOT / p).resolve()))
+            for name, p in models.items()
+        }
+        default_model = avatar.get("model", "Haru")
         self.avatar = {
-            "model": avatar.get("model", "Haru"),
-            "model_path": avatar.get(
-                "model_path",
-                "avatar/public/models/Haru/haru_greeter_t03.model3.json",
-            ),
+            "model": default_model,
+            "models": models,
+            "model_path": models.get(default_model)
+            or avatar.get("model_path")
+            or next(iter(models.values()), None),
+            "scale": float(avatar.get("scale", 1.0)),
             "half_duplex": bool(avatar.get("half_duplex", True)),
         }
 

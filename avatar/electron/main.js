@@ -1,21 +1,62 @@
 // Overlay de escritorio: ventana transparente, siempre visible y click-through.
 const { app, BrowserWindow, ipcMain, Menu, screen, session } = require("electron");
+const fs = require("fs");
 const path = require("path");
 
 const URL = process.env.JARVIS_URL || "http://127.0.0.1:8000/avatar/";
 const W = 420;
 const H = 640;
+const MARGIN = 30;
+const POS_FILE = path.join(__dirname, "..", "..", "data", "avatar_pos.json");
 
 let win = null;
 
-function createWindow() {
+function loadPos() {
+  try {
+    const p = JSON.parse(fs.readFileSync(POS_FILE, "utf-8"));
+    if (Number.isFinite(p.x) && Number.isFinite(p.y)) return p;
+  } catch (e) {
+    /* sin posicion guardada */
+  }
+  return null;
+}
+
+function savePos() {
+  if (!win) return;
+  const [x, y] = win.getPosition();
+  try {
+    fs.mkdirSync(path.dirname(POS_FILE), { recursive: true });
+    fs.writeFileSync(POS_FILE, JSON.stringify({ x, y }), "utf-8");
+  } catch (e) {
+    console.error("[pos] no se pudo guardar:", e.message);
+  }
+}
+
+function esquinaInferiorDerecha() {
   const { workArea } = screen.getPrimaryDisplay();
+  return {
+    x: workArea.x + workArea.width - W - MARGIN,
+    y: workArea.y + workArea.height - H - MARGIN,
+  };
+}
+
+function centrar() {
+  const { workArea } = screen.getPrimaryDisplay();
+  return {
+    x: workArea.x + Math.round((workArea.width - W) / 2),
+    y: workArea.y + Math.round((workArea.height - H) / 2),
+  };
+}
+
+function createWindow() {
+  const saved = loadPos();
+  const pos = saved || esquinaInferiorDerecha();
 
   win = new BrowserWindow({
     width: W,
     height: H,
-    x: workArea.x + workArea.width - W - 30,
-    y: workArea.y + workArea.height - H - 30,
+    x: pos.x,
+    y: pos.y,
     transparent: true,
     frame: false,
     resizable: false,
@@ -60,8 +101,33 @@ function createWindow() {
   const menu = Menu.buildFromTemplate([
     { label: "Mostrar / Ocultar", click: () => (win.isVisible() ? win.hide() : win.show()) },
     { label: "Recargar", click: () => win.reload() },
-    { label: "Abrir DevTools", click: () => win.webContents.toggleDevTools() },
     { type: "separator" },
+    {
+      label: "Centrar en pantalla",
+      click: () => {
+        const p = centrar();
+        win.setPosition(p.x, p.y);
+        savePos();
+      },
+    },
+    {
+      label: "Esquina inferior derecha",
+      click: () => {
+        const p = esquinaInferiorDerecha();
+        win.setPosition(p.x, p.y);
+        savePos();
+      },
+    },
+    {
+      label: "Restablecer posicion",
+      click: () => {
+        try { fs.rmSync(POS_FILE); } catch (e) { /* no existia */ }
+        const p = esquinaInferiorDerecha();
+        win.setPosition(p.x, p.y);
+      },
+    },
+    { type: "separator" },
+    { label: "Abrir DevTools", click: () => win.webContents.toggleDevTools() },
     { label: "Salir", click: () => app.quit() },
   ]);
   win.webContents.on("context-menu", () => menu.popup({ window: win }));
@@ -70,6 +136,25 @@ function createWindow() {
 ipcMain.on("set-ignore", (event, ignore) => {
   const w = BrowserWindow.fromWebContents(event.sender);
   if (w) w.setIgnoreMouseEvents(ignore, { forward: true });
+});
+
+ipcMain.on("drag-begin", (event) => {
+  const w = BrowserWindow.fromWebContents(event.sender);
+  if (w) w.setIgnoreMouseEvents(false);
+});
+
+ipcMain.on("drag-move", (event, dx, dy) => {
+  const w = BrowserWindow.fromWebContents(event.sender);
+  if (!w) return;
+  const [x, y] = w.getPosition();
+  w.setPosition(x + Math.round(dx), y + Math.round(dy));
+});
+
+ipcMain.on("drag-end", (event) => {
+  const w = BrowserWindow.fromWebContents(event.sender);
+  if (!w) return;
+  w.setIgnoreMouseEvents(true, { forward: true });
+  savePos();
 });
 
 app.whenReady().then(() => {
