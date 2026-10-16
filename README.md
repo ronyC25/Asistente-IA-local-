@@ -98,6 +98,9 @@ Escribe (o di) cosas como:
 - "Que tareas pendientes tengo?"
 - "Que agenda tengo los proximos 3 dias?"      # rangos: hoy, manana, fin de semana, esta semana...
 - "Que hay el fin de semana?"
+- "Cuanto falta para el proximo evento?"        # el tiempo restante se calcula en codigo
+- "Cual es la nota mas antigua?"                # y "las notas de esta semana"
+- "Crea una lista de la compra con leche y pan" # se guarda con sus elementos
 - "Recuerdame llamar al banco manana a las 9"
 - "Recuerdame tomar agua todos los dias a las 9"        # recordatorio recurrente
 - "Agenda una reunion el martes a las 10 en la oficina"

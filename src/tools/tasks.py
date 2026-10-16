@@ -6,7 +6,7 @@ from datetime import date, datetime
 
 from ..config import settings
 from ..db import connect
-from ..timeutil import parse_datetime, resolver_periodo
+from ..timeutil import faltan_texto, parse_datetime, resolver_periodo
 
 _PRIORIDADES = {
     "alta": "alta",
@@ -156,7 +156,19 @@ def listar_tareas(
         ).fetchall()
     finally:
         conn.close()
-    return {"total": len(rows), "tareas": [_row(r) for r in rows]}
+    ahora = datetime.now()
+    tareas: list[dict] = []
+    for r in rows:
+        d = _row(r)
+        fl = d.get("fecha_limite")
+        d["faltan"] = None
+        if fl:
+            try:
+                d["faltan"] = faltan_texto(datetime.fromisoformat(fl), ahora)
+            except (ValueError, TypeError):
+                d["faltan"] = None
+        tareas.append(d)
+    return {"total": len(tareas), "tareas": tareas}
 
 
 def obtener_tarea(id: int) -> dict | None:

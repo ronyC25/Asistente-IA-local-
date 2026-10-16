@@ -52,3 +52,26 @@ def test_agregar_sin_texto():
     lista = lists.gestionar_listas("crear", nombre="X")
     with pytest.raises(ValueError):
         lists.gestionar_listas("agregar", id=lista["id"])
+
+
+def test_crear_con_items():
+    lista = lists.gestionar_listas(
+        "crear", nombre="Compra", items=["leche", "pan", "huevos"]
+    )
+    assert len(lista["items"]) == 3
+    res = lists.consultar_listas("listar")
+    assert res["listas"][0]["total"] == 3
+    assert {i["texto"] for i in res["listas"][0]["items"]} == {"leche", "pan", "huevos"}
+
+
+def test_agregar_varios_items():
+    lista = lists.gestionar_listas("crear", nombre="X")
+    r = lists.gestionar_listas("agregar", id=lista["id"], items=["a", "b"])
+    assert r["agregados"] == ["a", "b"]
+    assert lists.consultar_listas("ver", id=lista["id"])["total"] == 2
+
+
+def test_listar_incluye_items():
+    lists.gestionar_listas("crear", nombre="Y", items=["uno"])
+    res = lists.consultar_listas("listar")
+    assert res["listas"][0]["items"][0]["texto"] == "uno"

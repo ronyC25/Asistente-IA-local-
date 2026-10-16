@@ -111,9 +111,13 @@ def _describe_gestionar_notas(a: dict) -> str:
 def _describe_gestionar_listas(a: dict) -> str:
     accion = str(a.get("accion", "?")).lower()
     ref = a.get("id") if a.get("id") is not None else a.get("nombre")
+    items = a.get("items") or []
     if accion in ("crear", "nueva", "crea"):
-        return f"Crear la lista «{a.get('nombre', '?')}»"
+        sufijo = f" con: {', '.join(str(i) for i in items)}" if items else ""
+        return f"Crear la lista «{a.get('nombre', '?')}»{sufijo}"
     if accion in ("agregar", "anadir", "add"):
+        if items:
+            return f"Agregar a la lista {ref}: {', '.join(str(i) for i in items)}"
         return f"Agregar «{a.get('texto', '?')}» a la lista {ref}"
     if accion in ("marcar", "desmarcar"):
         return f"{accion.capitalize()} el item {a.get('item_id')}"
@@ -476,9 +480,9 @@ def build_tools() -> list[dict]:
             "name": "listar_eventos",
             "description": (
                 "Lista los eventos del calendario. Por defecto muestra los proximos "
-                "desde ahora. Para rangos relativos usa 'periodo' (hoy, manana, "
-                "fin_de_semana, proximos_dias con 'dias', esta_semana, etc.) en vez "
-                "de calcular fechas."
+                "desde ahora; cada evento incluye 'faltan' (tiempo restante, ya "
+                "calculado). Para rangos relativos usa 'periodo'; para 'el mas proximo' "
+                "usa limite=1; para 'el mas antiguo' usa orden='antiguos'."
             ),
             "parameters": {
                 "type": "object",
@@ -491,6 +495,14 @@ def build_tools() -> list[dict]:
                         "description": (
                             "Solo eventos que YA OCURRIERON (inicio anterior a ahora). "
                             "Por defecto se listan los proximos."
+                        ),
+                    },
+                    "orden": {
+                        "type": "string",
+                        "enum": ["proximos", "antiguos"],
+                        "description": (
+                            "proximos (por defecto) o antiguos (todo el historial, el "
+                            "mas viejo primero)."
                         ),
                     },
                     "limite": {"type": "integer"},
@@ -568,8 +580,9 @@ def build_tools() -> list[dict]:
         {
             "name": "consultar_notas",
             "description": (
-                "Lee notas de texto libre. accion 'listar' (recientes) o 'buscar' "
-                "(por 'texto')."
+                "Lee notas de texto libre. accion 'listar' (por defecto) o 'buscar' "
+                "(por 'texto'). Filtra por fecha de creacion con 'periodo'/'dias' o "
+                "'desde'/'hasta'; 'orden' = recientes (por defecto) o antiguas."
             ),
             "parameters": {
                 "type": "object",
@@ -583,7 +596,15 @@ def build_tools() -> list[dict]:
                         "type": "string",
                         "description": "Texto a buscar (accion buscar)",
                     },
+                    "desde": {"type": "string", "description": "Fecha ISO inicial (opcional)"},
+                    "hasta": {"type": "string", "description": "Fecha ISO final (opcional)"},
+                    "orden": {
+                        "type": "string",
+                        "enum": ["recientes", "antiguas"],
+                        "description": "recientes (por defecto) o antiguas (la mas vieja primero)",
+                    },
                     "limite": {"type": "integer", "description": "Maximo de resultados"},
+                    **_periodo_props(),
                 },
             },
             "func": notes.consultar_notas,
@@ -618,8 +639,8 @@ def build_tools() -> list[dict]:
         {
             "name": "consultar_listas",
             "description": (
-                "Lee listas/checklists. accion 'listar' (todas) o 'ver' (items de una "
-                "lista por 'id' o 'nombre')."
+                "Lee listas/checklists. accion 'listar' (todas, con sus items) o 'ver' "
+                "(items de una lista por 'id' o 'nombre')."
             ),
             "parameters": {
                 "type": "object",
@@ -635,9 +656,10 @@ def build_tools() -> list[dict]:
         {
             "name": "gestionar_listas",
             "description": (
-                "Crea y modifica listas/checklists. accion: crear (nombre), agregar "
-                "(lista + texto), marcar/desmarcar (item_id), eliminar_item (item_id) "
-                "o eliminar_lista (id/nombre)."
+                "Crea y modifica listas/checklists. accion: crear (nombre + 'items' "
+                "opcional para crearla con sus elementos de una vez), agregar (lista + "
+                "'texto' o 'items'), marcar/desmarcar (item_id), eliminar_item "
+                "(item_id) o eliminar_lista (id/nombre)."
             ),
             "parameters": {
                 "type": "object",
@@ -658,6 +680,11 @@ def build_tools() -> list[dict]:
                     "texto": {
                         "type": "string",
                         "description": "Texto del item a agregar",
+                    },
+                    "items": {
+                        "type": "array",
+                        "items": {"type": "string"},
+                        "description": "Elementos de la lista (crear/agregar, varios de golpe)",
                     },
                     "item_id": {"type": "integer", "description": "Id del item"},
                     "hecho": {

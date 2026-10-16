@@ -77,7 +77,16 @@ def consultar_listas(
                           WHERE i.list_id = l.id AND i.hecho = 1) AS hechos
                    FROM lists l ORDER BY l.actualizada_en DESC, l.id DESC"""
             ).fetchall()
-            return {"total": len(rows), "listas": [dict(r) for r in rows]}
+            listas = []
+            for r in rows:
+                d = dict(r)
+                items = conn.execute(
+                    "SELECT * FROM list_items WHERE list_id = ? ORDER BY hecho, id",
+                    (r["id"],),
+                ).fetchall()
+                d["items"] = [dict(x) for x in items]
+                listas.append(d)
+            return {"total": len(listas), "listas": listas}
 
         if accion in ("ver", "items", "mostrar"):
             lista = _find_lista(conn, id, nombre)
@@ -103,9 +112,10 @@ def gestionar_listas(
     texto: str | None = None,
     item_id: int | None = None,
     hecho: bool = True,
+    items: list | None = None,
 ) -> dict:
     """Modifica listas. accion: crear | agregar | marcar | desmarcar |
-    eliminar_item | eliminar_lista."""
+    eliminar_item | eliminar_lista. ``items`` permite crear/anadir varios de golpe."""
     accion = (accion or "").strip().lower()
     conn = _conn()
     try:
@@ -115,26 +125,42 @@ def gestionar_listas(
             cur = conn.execute(
                 "INSERT INTO lists (nombre) VALUES (?)", (str(nombre).strip(),)
             )
+            list_id = cur.lastrowid
+            for it in items or []:
+                if str(it).strip():
+                    conn.execute(
+                        "INSERT INTO list_items (list_id, texto) VALUES (?, ?)",
+                        (list_id, str(it).strip()),
+                    )
             conn.commit()
-            row = conn.execute(
-                "SELECT * FROM lists WHERE id = ?", (cur.lastrowid,)
-            ).fetchone()
-            return dict(row)
+            row = conn.execute("SELECT * FROM lists WHERE id = ?", (list_id,)).fetchone()
+            d = dict(row)
+            d["items"] = [
+                dict(x)
+                for x in conn.execute(
+                    "SELECT * FROM list_items WHERE list_id = ? ORDER BY id",
+                    (list_id,),
+                ).fetchall()
+            ]
+            return d
 
         if accion in ("agregar", "anadir", "add"):
-            if not texto or not str(texto).strip():
-                raise ValueError("el item necesita 'texto'.")
             lista = _find_lista(conn, id, nombre)
-            conn.execute(
-                "INSERT INTO list_items (list_id, texto) VALUES (?, ?)",
-                (lista["id"], str(texto).strip()),
-            )
+            textos = [str(texto).strip()] if texto and str(texto).strip() else []
+            textos += [str(it).strip() for it in (items or []) if str(it).strip()]
+            if not textos:
+                raise ValueError("el item necesita 'texto' o 'items'.")
+            for t in textos:
+                conn.execute(
+                    "INSERT INTO list_items (list_id, texto) VALUES (?, ?)",
+                    (lista["id"], t),
+                )
             conn.execute(
                 "UPDATE lists SET actualizada_en = datetime('now') WHERE id = ?",
                 (lista["id"],),
             )
             conn.commit()
-            return {"lista": dict(lista), "agregado": str(texto).strip()}
+            return {"lista": dict(lista), "agregados": textos}
 
         if accion in ("marcar", "desmarcar"):
             if item_id is None:

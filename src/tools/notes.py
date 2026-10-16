@@ -9,6 +9,7 @@ import sqlite3
 
 from ..config import settings
 from ..db import connect
+from ..timeutil import parse_datetime, resolver_periodo
 
 _SCHEMA = """
 CREATE TABLE IF NOT EXISTS notes (
@@ -35,26 +36,50 @@ def consultar_notas(
     accion: str = "listar",
     texto: str | None = None,
     limite: int = 20,
+    periodo: str | None = None,
+    dias: int | None = None,
+    desde: str | None = None,
+    hasta: str | None = None,
+    orden: str = "recientes",
 ) -> dict:
-    """Lee notas. accion: 'listar' (recientes) o 'buscar' (por texto)."""
+    """Lee notas. accion: 'listar' o 'buscar' (por 'texto').
+
+    Filtra por fecha de creacion (``creada_en``) con ``periodo``/``dias`` o
+    ``desde``/``hasta``; ``orden`` = 'recientes' (por defecto) o 'antiguas'.
+    """
     accion = (accion or "listar").strip().lower()
     limite = max(1, int(limite or 20))
+    orden = (orden or "recientes").strip().lower()
     conn = _conn()
     try:
-        if accion in ("listar", "todas", "recientes"):
+        if accion in ("listar", "todas", "recientes", "buscar", "busca", "encontrar"):
+            where: list[str] = []
+            params: list = []
+            if accion in ("buscar", "busca", "encontrar"):
+                if not texto or not str(texto).strip():
+                    raise ValueError("para buscar notas indica 'texto'.")
+                patron = f"%{str(texto).strip()}%"
+                where.append("(titulo LIKE ? OR contenido LIKE ?)")
+                params.extend([patron, patron])
+            if periodo:
+                d, h = resolver_periodo(periodo, dias)
+                where.append("date(creada_en, 'localtime') >= date(?)")
+                params.append(d.date().isoformat())
+                where.append("date(creada_en, 'localtime') <= date(?)")
+                params.append(h.date().isoformat())
+            else:
+                if desde:
+                    where.append("date(creada_en, 'localtime') >= date(?)")
+                    params.append(parse_datetime(desde).date().isoformat())
+                if hasta:
+                    where.append("date(creada_en, 'localtime') <= date(?)")
+                    params.append(parse_datetime(hasta).date().isoformat())
+            clause = ("WHERE " + " AND ".join(where)) if where else ""
+            direction = "ASC" if orden in ("antiguas", "antigua", "asc") else "DESC"
             rows = conn.execute(
-                "SELECT * FROM notes ORDER BY actualizada_en DESC, id DESC LIMIT ?",
-                (limite,),
-            ).fetchall()
-        elif accion in ("buscar", "busca", "encontrar"):
-            if not texto or not str(texto).strip():
-                raise ValueError("para buscar notas indica 'texto'.")
-            patron = f"%{str(texto).strip()}%"
-            rows = conn.execute(
-                """SELECT * FROM notes
-                   WHERE titulo LIKE ? OR contenido LIKE ?
-                   ORDER BY actualizada_en DESC, id DESC LIMIT ?""",
-                (patron, patron, limite),
+                f"""SELECT * FROM notes {clause}
+                    ORDER BY creada_en {direction}, id {direction} LIMIT ?""",
+                (*params, limite),
             ).fetchall()
         else:
             raise ValueError("accion no valida: usa listar o buscar.")

@@ -4,7 +4,7 @@ from datetime import datetime
 
 import pytest
 
-from src.timeutil import resolver_periodo
+from src.timeutil import faltan_texto, resolver_periodo
 
 
 def _jueves() -> datetime:
@@ -84,3 +84,11 @@ def test_dia_semana_es_hoy():
 def test_periodo_invalido():
     with pytest.raises(ValueError):
         resolver_periodo("banana", ahora=_jueves())
+
+
+def test_faltan_texto():
+    base = datetime(2026, 10, 15, 11, 0)
+    assert faltan_texto(datetime(2026, 10, 15, 12, 0), base) == "en 1 h"
+    assert faltan_texto(datetime(2026, 10, 15, 10, 0), base) == "hace 1 h"
+    assert faltan_texto(datetime(2026, 10, 18, 11, 0), base) == "en 3 d"
+    assert faltan_texto(datetime(2026, 10, 15, 11, 30), base) == "en 30 min"

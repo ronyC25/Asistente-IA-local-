@@ -8,7 +8,7 @@ from dateutil.relativedelta import relativedelta
 
 from ..config import settings
 from ..db import connect
-from ..timeutil import parse_datetime, resolver_periodo
+from ..timeutil import faltan_texto, parse_datetime, resolver_periodo
 
 _CANALES = {"windows", "telegram"}
 _RECURRENCIAS = {"ninguna", "diaria", "semanal", "mensual"}
@@ -127,7 +127,16 @@ def listar_recordatorios(
         ).fetchall()
     finally:
         conn.close()
-    return {"total": len(rows), "recordatorios": [_row(r) for r in rows]}
+    ahora = datetime.now()
+    recs: list[dict] = []
+    for r in rows:
+        d = _row(r)
+        try:
+            d["faltan"] = faltan_texto(datetime.fromisoformat(d["cuando"]), ahora)
+        except (ValueError, TypeError):
+            d["faltan"] = None
+        recs.append(d)
+    return {"total": len(recs), "recordatorios": recs}
 
 
 def obtener_recordatorio(id: int) -> dict | None:

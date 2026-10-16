@@ -84,6 +84,27 @@ def resolver_periodo(
     raise ValueError(f"periodo no valido: {periodo!r}")
 
 
+def faltan_texto(objetivo: datetime, ahora: datetime | None = None) -> str:
+    """Texto humano de cuanto falta (o ha pasado) hasta ``objetivo``.
+
+    Se calcula en codigo para que el modelo no tenga que hacer la aritmetica.
+    """
+    ahora = ahora or datetime.now()
+    seg = (objetivo - ahora).total_seconds()
+    futuro = seg >= 0
+    seg = abs(seg)
+    dias = int(seg // 86400)
+    horas = int((seg % 86400) // 3600)
+    minutos = int((seg % 3600) // 60)
+    if dias > 0:
+        base = f"{dias} d" + (f" {horas} h" if horas else "")
+    elif horas > 0:
+        base = f"{horas} h" + (f" {minutos} min" if minutos else "")
+    else:
+        base = f"{minutos} min"
+    return f"en {base}" if futuro else f"hace {base}"
+
+
 def parse_datetime(value: str, future: bool = False) -> datetime:
     """Parsea una fecha/hora ISO. Si future=True exige que sea en el futuro."""
     try:

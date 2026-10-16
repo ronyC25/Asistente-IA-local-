@@ -72,7 +72,7 @@ avatar/              # app Live2D + overlay Electron (Fase 7)
   electron/          #   ventana overlay transparente y click-through
   setup_assets.ps1   #   descarga librerias + modelos Haru/Wanko (no versionados)
 start*.ps1           # lanzadores (venv + modos + start-all + auth)
-tests/               # 194 tests (pytest)
+tests/               # 214 tests (pytest)
 ```
 
 ## Herramientas del agente (23)
@@ -267,6 +267,12 @@ aplicacion** (requiere verificacion en 2 pasos).
   **ejecuta la lectura y pide el resumen** (fallback). **Cortador de bucle**: si el
   modelo re-llama lecturas ya ejecutadas en el turno, se fuerza un resumen sin
   herramientas (evita "demasiados pasos" en sesiones largas).
+- **Notas/listas/eventos**: `consultar_notas` filtra por `periodo`/`dias`/`desde`/
+  `hasta` y `orden` (recientes/antiguas); `gestionar_listas(accion='crear', items=[...])`
+  crea la lista **con sus elementos en una sola llamada** y `consultar_listas('listar')`
+  devuelve los items; `listar_eventos` acepta `orden` (proximos/antiguos). Ademas,
+  eventos, recordatorios y tareas incluyen un campo calculado **`faltan`** ("cuanto
+  falta") para no depender de la aritmetica del modelo.
 - **Fechas relativas**: qwen3:8b calculaba mal los rangos (p. ej. "proximos 3 dias"
   desde el dia equivocado). Ahora se resuelven en codigo con `periodo`
   (`src/timeutil.resolver_periodo`) y se fuerzan en `agent._ajustar_args`; el modelo

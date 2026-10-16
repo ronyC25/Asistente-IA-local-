@@ -46,3 +46,17 @@ def test_crear_sin_contenido():
 def test_eliminar_inexistente():
     with pytest.raises(ValueError):
         notes.gestionar_notas("eliminar", id=999)
+
+
+def test_listar_orden_antiguas():
+    notes.gestionar_notas("crear", contenido="primera")
+    notes.gestionar_notas("crear", contenido="segunda")
+    res = notes.consultar_notas("listar", orden="antiguas", limite=1)
+    assert res["total"] == 1
+    assert res["notas"][0]["contenido"] == "primera"
+
+
+def test_listar_por_periodo():
+    notes.gestionar_notas("crear", contenido="hoy")
+    assert notes.consultar_notas("listar", periodo="hoy")["total"] == 1
+    assert notes.consultar_notas("listar", periodo="manana")["total"] == 0

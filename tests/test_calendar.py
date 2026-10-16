@@ -97,3 +97,28 @@ def test_listar_periodo_proximos_dias():
     r = calendar.listar_eventos(periodo="proximos_dias", dias=3)
     assert r["total"] == 1
     assert r["eventos"][0]["titulo"] == "HoyTarde"
+
+
+def test_listar_orden_antiguos_con_faltan():
+    pasado = (datetime.now() - timedelta(days=10)).replace(
+        hour=10, minute=0, second=0, microsecond=0
+    )
+    futuro = (datetime.now() + timedelta(days=2)).replace(
+        hour=10, minute=0, second=0, microsecond=0
+    )
+    calendar.crear_evento("Viejo", pasado.isoformat())
+    calendar.crear_evento("Nuevo", futuro.isoformat())
+    r = calendar.listar_eventos(orden="antiguos", limite=1)
+    assert r["total"] == 1
+    assert r["eventos"][0]["titulo"] == "Viejo"
+    assert r["eventos"][0]["faltan"].startswith("hace")
+
+
+def test_listar_proximo_tiene_faltan():
+    futuro = (datetime.now() + timedelta(hours=2)).replace(
+        minute=0, second=0, microsecond=0
+    )
+    calendar.crear_evento("Proximo", futuro.isoformat())
+    r = calendar.listar_eventos(limite=1)
+    assert r["eventos"][0]["titulo"] == "Proximo"
+    assert r["eventos"][0]["faltan"].startswith("en")

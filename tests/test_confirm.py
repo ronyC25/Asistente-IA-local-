@@ -7,8 +7,11 @@ from src.brain.confirm import (
     dominio_lectura,
     looks_like_action,
     looks_like_query,
+    orden_de_texto,
     periodo_de_texto,
+    pregunta_cuanto_falta,
     quiere_historial_recordatorios,
+    quiere_proximo,
 )
 
 
@@ -132,3 +135,26 @@ def test_periodo_de_texto(text, esperado):
 )
 def test_dominio_lectura(text, esperado):
     assert dominio_lectura(text) == esperado
+
+
+@pytest.mark.parametrize(
+    "text,esperado",
+    [
+        ("cual es la nota mas antigua", "antiguas"),
+        ("el evento mas antiguo", "antiguas"),
+        ("la nota mas reciente", "recientes"),
+        ("dame las tareas", None),
+    ],
+)
+def test_orden_de_texto(text, esperado):
+    assert orden_de_texto(text) == esperado
+
+
+def test_quiere_proximo():
+    assert quiere_proximo("cual es el evento mas proximo") is True
+    assert quiere_proximo("dame las tareas") is False
+
+
+def test_pregunta_cuanto_falta():
+    assert pregunta_cuanto_falta("cuanto falta para el proximo evento") is True
+    assert pregunta_cuanto_falta("dame las tareas") is False

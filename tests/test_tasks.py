@@ -92,3 +92,10 @@ def test_listar_tareas_por_periodo():
     r = tasks.listar_tareas(periodo="manana")
     assert r["total"] == 1
     assert r["tareas"][0]["titulo"] == "Manana"
+
+
+def test_listar_tareas_faltan():
+    futuro = (datetime.now() + timedelta(days=2)).isoformat(timespec="minutes")
+    tasks.crear_tarea("X", fecha_limite=futuro)
+    r = tasks.listar_tareas()
+    assert r["tareas"][0]["faltan"].startswith("en")

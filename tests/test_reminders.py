@@ -134,3 +134,9 @@ def test_listar_recordatorios_por_periodo():
     r = reminders.listar_recordatorios(periodo="manana")
     assert r["total"] == 1
     assert r["recordatorios"][0]["texto"] == "Manana"
+
+
+def test_listar_recordatorios_faltan():
+    reminders.crear_recordatorio("X", _futuro(60))
+    r = reminders.listar_recordatorios()
+    assert r["recordatorios"][0]["faltan"].startswith("en")

@@ -12,8 +12,11 @@ from .confirm import (
     dominio_lectura,
     looks_like_action,
     looks_like_query,
+    orden_de_texto,
     periodo_de_texto,
+    pregunta_cuanto_falta,
     quiere_historial_recordatorios,
+    quiere_proximo,
 )
 from .registry import Registry
 
@@ -36,7 +39,12 @@ def _norm_args(args: Any) -> dict:
 
 
 # Herramientas de listado que aceptan el parametro 'periodo' (rango relativo).
-_TOOLS_CON_PERIODO = ("listar_eventos", "listar_tareas", "listar_recordatorios")
+_TOOLS_CON_PERIODO = (
+    "listar_eventos",
+    "listar_tareas",
+    "listar_recordatorios",
+    "consultar_notas",
+)
 
 # Dominio de datos -> herramienta de lectura por defecto (fallback determinista).
 _DOMINIO_TOOL = {
@@ -51,16 +59,29 @@ _DOMINIO_TOOL = {
 
 def _args_dominio(dominio: str, user_text: str | None) -> dict:
     """Argumentos por defecto para la lectura forzada de un dominio."""
-    t = (user_text or "").lower()
+    txt = user_text or ""
+    t = txt.lower()
     if dominio == "tareas":
         if any(w in t for w in ("todas", "todos", "base de datos", "completad")):
             return {"estado": "todas"}
         return {}
     if dominio == "recordatorios":
-        est = "historial" if quiere_historial_recordatorios(user_text or "") else "pendientes"
+        est = "historial" if quiere_historial_recordatorios(txt) else "pendientes"
         return {"estado": est}
-    if dominio in ("notas", "listas"):
+    if dominio == "notas":
+        args: dict = {"accion": "listar"}
+        if orden_de_texto(txt) == "antiguas":
+            args["orden"] = "antiguas"
+            args["limite"] = 1
+        return args
+    if dominio == "listas":
         return {"accion": "listar"}
+    if dominio == "eventos":
+        if quiere_proximo(txt) or pregunta_cuanto_falta(txt):
+            return {"limite": 1}
+        if orden_de_texto(txt) == "antiguas":
+            return {"orden": "antiguos", "limite": 1}
+        return {}
     return {}
 
 
@@ -134,6 +155,9 @@ class Agent:
         if not user_text:
             return parsed
         periodo = periodo_de_texto(user_text)
+        orden = orden_de_texto(user_text)
+        proximo = quiere_proximo(user_text)
+        falta = pregunta_cuanto_falta(user_text)
         ajustado: list[tuple[str, dict]] = []
         for name, args in parsed:
             args = dict(args or {})
@@ -150,6 +174,18 @@ class Agent:
                     args["dias"] = n
                 args.pop("desde", None)
                 args.pop("hasta", None)
+            if orden and name == "consultar_notas":
+                args["orden"] = "antiguas" if orden == "antiguas" else "recientes"
+                if orden == "antiguas":
+                    args.setdefault("limite", 1)
+            if name == "listar_eventos":
+                if orden == "antiguas":
+                    args["orden"] = "antiguos"
+                    args.setdefault("limite", 1)
+                if (proximo or falta) and not periodo:
+                    args.setdefault("limite", 1)
+            if name == "listar_recordatorios" and falta:
+                args.setdefault("limite", 1)
             ajustado.append((name, args))
         # Inyeccion determinista: si es una consulta de un dominio claro y el
         # modelo no llamo la herramienta de lectura de ese dominio, la anadimos

@@ -79,5 +79,12 @@ RECORDATORIOS (usa listar_recordatorios); "notas" -> consultar_notas; "listas"/\
 "checklists" -> consultar_listas. Si el usuario pide "una lista de X" o "todos los X", \
 usa el estado que incluya todo lo que tenga sentido (p. ej. listar_recordatorios con \
 estado historial o todos).
+17. Notas: para "la nota mas antigua/reciente" usa consultar_notas con 'orden' \
+('antiguas'/'recientes'); para notas de un dia/semana usa 'periodo' o 'desde'/'hasta'. \
+Eventos: "el mas proximo" -> listar_eventos con limite=1; "el mas antiguo" -> \
+listar_eventos con orden="antiguos" y limite=1. Para "cuanto falta" usa el campo \
+'faltan' que devuelve la herramienta (NO calcules tu las horas). Para crear una lista \
+con elementos usa gestionar_listas(accion="crear", nombre=..., items=[...]) en UNA \
+llamada: no digas que agregaste elementos sin haber llamado a la herramienta.
 
 Se breve: responde en una o dos frases salvo que se pida detalle."""

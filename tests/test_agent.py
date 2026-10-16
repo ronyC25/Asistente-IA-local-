@@ -336,3 +336,35 @@ def test_cortador_de_bucle():
     reply, info = agent.handle(s, "que tareas tengo")
     assert reply == "Tienes 0 tareas."
     assert info is None
+
+
+def test_ajustar_args_nota_antigua():
+    agent = Agent(_registry(), model="dummy", system_prompt="sys")
+    parsed = [("consultar_notas", {"accion": "listar"})]
+    out = agent._ajustar_args(parsed, "cual es la nota mas antigua")
+    d = dict(out)["consultar_notas"]
+    assert d["orden"] == "antiguas"
+    assert d["limite"] == 1
+
+
+def test_ajustar_args_evento_proximo():
+    agent = Agent(_registry(), model="dummy", system_prompt="sys")
+    parsed = [("listar_eventos", {})]
+    out = agent._ajustar_args(parsed, "cual es el evento mas proximo")
+    assert dict(out)["listar_eventos"].get("limite") == 1
+
+
+def test_ajustar_args_evento_antiguo():
+    agent = Agent(_registry(), model="dummy", system_prompt="sys")
+    parsed = [("listar_eventos", {})]
+    out = agent._ajustar_args(parsed, "cual es el evento mas antiguo")
+    d = dict(out)["listar_eventos"]
+    assert d["orden"] == "antiguos"
+    assert d["limite"] == 1
+
+
+def test_ajustar_args_notas_periodo():
+    agent = Agent(_registry(), model="dummy", system_prompt="sys")
+    parsed = [("consultar_notas", {"accion": "listar"})]
+    out = agent._ajustar_args(parsed, "dame las notas de esta semana")
+    assert dict(out)["consultar_notas"].get("periodo") == "esta_semana"

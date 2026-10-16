@@ -201,6 +201,55 @@ def dominio_lectura(text: str) -> str | None:
     return None
 
 
+def orden_de_texto(text: str) -> str | None:
+    """Detecta 'lo mas antiguo' o 'lo mas reciente' (None si no aplica)."""
+    t = _norm(text)
+    if not t:
+        return None
+    palabras = set(t.split())
+    if palabras & {
+        "antiguo",
+        "antigua",
+        "antiguos",
+        "antiguas",
+        "viejo",
+        "vieja",
+        "viejos",
+        "viejas",
+    }:
+        return "antiguas"
+    if palabras & {
+        "reciente",
+        "recientes",
+        "ultimo",
+        "ultima",
+        "ultimos",
+        "ultimas",
+    }:
+        return "recientes"
+    return None
+
+
+def quiere_proximo(text: str) -> bool:
+    """True si piden el proximo/siguiente (p. ej. 'el evento mas proximo')."""
+    palabras = set(_norm(text).split())
+    return bool(
+        palabras
+        & {"proximo", "proxima", "proximos", "proximas", "siguiente", "siguientes"}
+    )
+
+
+def pregunta_cuanto_falta(text: str) -> bool:
+    """True si preguntan cuanto falta/queda para algo."""
+    t = _norm(text)
+    return (
+        "cuanto falta" in t
+        or "cuanto queda" in t
+        or "cuanto tiempo" in t
+        or "falta para" in t
+    )
+
+
 _HISTORIAL_WORDS = {
     "lista",
     "listado",

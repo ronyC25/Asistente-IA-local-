@@ -13,7 +13,7 @@ from pathlib import Path
 
 from ..config import settings
 from ..db import connect
-from ..timeutil import parse_datetime, resolver_periodo
+from ..timeutil import faltan_texto, parse_datetime, resolver_periodo
 
 log = logging.getLogger("asistente.calendar")
 
@@ -149,11 +149,14 @@ def listar_eventos(
     pasados: bool = False,
     periodo: str | None = None,
     dias: int | None = None,
+    orden: str | None = None,
 ) -> dict:
     where: list[str] = []
     params: list = []
     if not incluir_cancelados:
         where.append("estado = 'activo'")
+    o = str(orden or "").lower()
+    buscar_todo = o in ("antiguos", "antiguo")
     if periodo:
         d, h = resolver_periodo(periodo, dias)
         where.append("inicio >= ?")
@@ -164,7 +167,7 @@ def listar_eventos(
         if desde:
             where.append("inicio >= ?")
             params.append(parse_datetime(desde).isoformat())
-        elif not pasados:
+        elif not pasados and not buscar_todo:
             where.append("inicio >= ?")
             params.append(datetime.now().isoformat())
         if hasta:
@@ -174,16 +177,31 @@ def listar_eventos(
             where.append("inicio < ?")
             params.append(datetime.now().isoformat())
     clause = ("WHERE " + " AND ".join(where)) if where else ""
-    orden = "inicio DESC" if pasados else "inicio"
+    if o in ("antiguos", "antiguo", "asc"):
+        direccion = "ASC"
+    elif o in ("recientes", "desc"):
+        direccion = "DESC"
+    else:
+        direccion = "DESC" if pasados else "ASC"
     conn = _conn()
     try:
         rows = conn.execute(
-            f"SELECT * FROM events {clause} ORDER BY {orden} LIMIT ?",
+            f"SELECT * FROM events {clause} ORDER BY inicio {direccion}, id {direccion} "
+            "LIMIT ?",
             (*params, int(limite)),
         ).fetchall()
     finally:
         conn.close()
-    return {"total": len(rows), "eventos": [_row(r) for r in rows]}
+    ahora = datetime.now()
+    eventos: list[dict] = []
+    for r in rows:
+        d = _row(r)
+        try:
+            d["faltan"] = faltan_texto(datetime.fromisoformat(d["inicio"]), ahora)
+        except (ValueError, TypeError):
+            d["faltan"] = None
+        eventos.append(d)
+    return {"total": len(eventos), "eventos": eventos}
 
 
 def obtener_evento(id: int) -> dict | None:
