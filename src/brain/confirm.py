@@ -1,6 +1,7 @@
 """Logica de confirmacion de acciones pendientes (sin dependencias de red)."""
 from __future__ import annotations
 
+import calendar as _calendar
 import re
 import unicodedata
 from datetime import date, timedelta
@@ -345,12 +346,59 @@ def fecha_de_texto(text: str, hoy: date | None = None) -> date | None:
     return None
 
 
+def _semana_de_mes(year: int, mes: int, cual: str) -> tuple[date, date] | None:
+    """Rango de una semana (bloques de 7 dias desde el dia 1) de un mes."""
+    ultimo = _calendar.monthrange(year, mes)[1]
+    if cual == "primera":
+        return (date(year, mes, 1), date(year, mes, 7))
+    if cual == "segunda":
+        return (date(year, mes, 8), date(year, mes, 14))
+    if cual == "tercera":
+        return (date(year, mes, 15), date(year, mes, 21))
+    if cual == "cuarta":
+        return (date(year, mes, 22), date(year, mes, 28))
+    if cual == "quinta":
+        if ultimo < 29:
+            return None
+        return (date(year, mes, 29), date(year, mes, ultimo))
+    if cual == "ultima":
+        return (date(year, mes, ultimo - 6), date(year, mes, ultimo))
+    if cual in ("penultima", "anteultima"):
+        ini = ultimo - 13
+        if ini < 1:
+            return None
+        return (date(year, mes, ini), date(year, mes, ultimo - 7))
+    return None
+
+
 def rango_de_texto(text: str, hoy: date | None = None) -> tuple[date, date] | None:
-    """Rangos relativos ampliados: 'de aqui a N semanas/meses', 'en N dias'..."""
+    """Rangos relativos ampliados: 'de aqui a N semanas/meses', 'en N dias',
+    'la ultima semana de octubre', 'la primera semana del mes'..."""
     t = _norm_keep(text)
     if not t:
         return None
     hoy = hoy or date.today()
+
+    # Semanas de un mes (o del mes actual si no se indica).
+    m = re.search(
+        r"(primera|segunda|tercera|cuarta|quinta|penultima|anteultima|ultima)\s+semana"
+        r"(?:\s+de\s+([a-z]+)(?:\s+de\s+(\d{4}))?|\s+del\s+mes(?:\s+de\s+(\d{4}))?)?",
+        t,
+    )
+    if m:
+        cual = m.group(1)
+        if m.group(2):
+            mes = _MESES.get(m.group(2))
+            if not mes:
+                return None
+            year = int(m.group(3)) if m.group(3) else hoy.year
+        else:
+            mes = hoy.month
+            year = int(m.group(4)) if m.group(4) else hoy.year
+        r = _semana_de_mes(year, mes, cual)
+        if r:
+            return r
+
     m = re.search(
         r"(de aqui a|en|proximas?|proximos?|siguientes?)\s+"
         r"(\d{1,3}|un|una|uno|dos|tres|cuatro|cinco|seis|siete|ocho|nueve|diez|once|doce|quince)\s+"

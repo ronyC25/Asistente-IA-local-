@@ -98,6 +98,7 @@ Escribe (o di) cosas como:
 - "Que tareas pendientes tengo?"
 - "Que agenda tengo los proximos 3 dias?"      # rangos: hoy, manana, fin de semana, esta semana...
 - "Que hay el fin de semana?"
+- "Que eventos hay la ultima semana de octubre?"  # tambien: "la primera semana de <mes>"
 - "Cuanto falta para el proximo evento?"        # el tiempo restante se calcula en codigo
 - "Cual es la nota mas antigua?"                # y "las notas de esta semana"
 - "Crea una lista de la compra con leche y pan" # se guarda con sus elementos

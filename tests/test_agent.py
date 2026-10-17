@@ -386,3 +386,15 @@ def test_ajustar_args_rango_semanas():
     d = dict(out)["listar_eventos"]
     assert d.get("desde") and d.get("hasta")
     assert d["desde"] != d["hasta"]
+
+
+def test_ajustar_args_ultima_semana_de_mes():
+    from datetime import date
+
+    y = date.today().year
+    agent = Agent(_registry(), model="dummy", system_prompt="sys")
+    parsed = [("listar_eventos", {})]
+    out = agent._ajustar_args(parsed, "eventos de la ultima semana de octubre")
+    d = dict(out)["listar_eventos"]
+    assert d["desde"] == f"{y}-10-25"
+    assert d["hasta"] == f"{y}-10-31"

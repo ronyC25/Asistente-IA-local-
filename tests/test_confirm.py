@@ -198,3 +198,23 @@ def test_rango_de_texto():
         date(2026, 10, 30),
     )
     assert rango_de_texto("dame las tareas", hoy=hoy) is None
+
+
+def test_rango_semana_de_mes():
+    hoy = date(2026, 10, 16)
+    assert rango_de_texto("la ultima semana de octubre", hoy=hoy) == (
+        date(2026, 10, 25),
+        date(2026, 10, 31),
+    )
+    assert rango_de_texto("la primera semana de octubre", hoy=hoy) == (
+        date(2026, 10, 1),
+        date(2026, 10, 7),
+    )
+    assert rango_de_texto("la segunda semana de noviembre de 2027", hoy=hoy) == (
+        date(2027, 11, 8),
+        date(2027, 11, 14),
+    )
+    assert rango_de_texto("la ultima semana del mes", hoy=hoy) == (
+        date(2026, 10, 25),
+        date(2026, 10, 31),
+    )
