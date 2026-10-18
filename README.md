@@ -107,6 +107,9 @@ Escribe (o di) cosas como:
 - "Agenda una reunion el martes a las 10 en la oficina"
 - "Crea una nota: ideas para el proyecto"
 - "Crea una lista de la compra y anade leche y pan"
+- "Busca donde apunte lo del proyecto"             # buscar_todo: busca en todo a la vez
+- "Que tareas estan etiquetadas como compras?"     # etiquetas (tareas, notas, eventos, recordatorios)
+- "Crea una subtarea de la tarea 3: revisar el borrador"  # subtareas anidadas
 - "Mandame la lista de recordatorios por Telegram"
 - "Lee mis ultimos 3 correos"
 - "Sincroniza mi calendario con Google"          # requiere Google Calendar configurado

@@ -9,6 +9,7 @@ from dateutil.relativedelta import relativedelta
 from ..config import settings
 from ..db import connect
 from ..timeutil import faltan_texto, parse_datetime, resolver_periodo
+from ._tags import filtro_params, filtro_sql, lista as tags_lista, normalizar as tags_norm
 
 _CANALES = {"windows", "telegram"}
 _RECURRENCIAS = {"ninguna", "diaria", "semanal", "mensual"}
@@ -20,6 +21,7 @@ CREATE TABLE IF NOT EXISTS reminders (
     cuando    TEXT NOT NULL,
     canal     TEXT NOT NULL DEFAULT 'windows',
     recurrencia TEXT NOT NULL DEFAULT 'ninguna',
+    etiquetas TEXT,
     estado    TEXT NOT NULL DEFAULT 'pendiente',
     creado_en TEXT NOT NULL DEFAULT (datetime('now')),
     enviado_en TEXT
@@ -50,11 +52,16 @@ def _conn() -> sqlite3.Connection:
             "ALTER TABLE reminders ADD COLUMN recurrencia TEXT NOT NULL DEFAULT 'ninguna'"
         )
         conn.commit()
+    if "etiquetas" not in cols:
+        conn.execute("ALTER TABLE reminders ADD COLUMN etiquetas TEXT")
+        conn.commit()
     return conn
 
 
 def _row(row: sqlite3.Row) -> dict:
-    return dict(row)
+    d = dict(row)
+    d["etiquetas"] = tags_lista(d.get("etiquetas"))
+    return d
 
 
 def crear_recordatorio(
@@ -62,6 +69,7 @@ def crear_recordatorio(
     cuando: str,
     canal: str = "windows",
     recurrencia: str = "ninguna",
+    etiquetas=None,
 ) -> dict:
     if not texto or not str(texto).strip():
         raise ValueError("el texto del recordatorio no puede estar vacio")
@@ -77,9 +85,9 @@ def crear_recordatorio(
     conn = _conn()
     try:
         cur = conn.execute(
-            "INSERT INTO reminders (texto, cuando, canal, recurrencia) "
-            "VALUES (?, ?, ?, ?)",
-            (str(texto).strip(), dt.isoformat(), canal, recurrencia),
+            "INSERT INTO reminders (texto, cuando, canal, recurrencia, etiquetas) "
+            "VALUES (?, ?, ?, ?, ?)",
+            (str(texto).strip(), dt.isoformat(), canal, recurrencia, tags_norm(etiquetas)),
         )
         conn.commit()
         row = conn.execute(
@@ -98,6 +106,7 @@ def listar_recordatorios(
     dias: int | None = None,
     desde: str | None = None,
     hasta: str | None = None,
+    etiqueta: str | None = None,
 ) -> dict:
     estado = (estado or "pendientes").strip().lower()
     if estado not in _ESTADO_FILTRO:
@@ -112,6 +121,9 @@ def listar_recordatorios(
         placeholders = ", ".join("?" for _ in filtro)
         conds.append(f"estado IN ({placeholders})")
         params.extend(filtro)
+    if etiqueta:
+        conds.append(filtro_sql("etiquetas"))
+        params.extend(filtro_params(etiqueta))
     if periodo:
         d, h = resolver_periodo(periodo, dias)
         conds.append("datetime(cuando) >= datetime(?)")
@@ -142,7 +154,7 @@ def listar_recordatorios(
         base = _row(r)
         d = {
             k: base[k]
-            for k in ("id", "texto", "cuando", "canal", "recurrencia", "estado")
+            for k in ("id", "texto", "cuando", "canal", "recurrencia", "estado", "etiquetas")
         }
         try:
             d["faltan"] = faltan_texto(datetime.fromisoformat(d["cuando"]), ahora)

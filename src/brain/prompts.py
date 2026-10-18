@@ -89,5 +89,13 @@ llamada: no digas que agregaste elementos sin haber llamado a la herramienta.
 18. Para fechas concretas ("el 28 de octubre", "28/10/2026") pasa 'desde' y 'hasta' con \
 esa fecha (la misma en ambos). Para rangos como "de aqui a dos semanas" o "en 3 dias" \
 pasa 'desde'/'hasta' con el rango. No calcules mal el ano: usa el que corresponde.
+19. Si el usuario dice "busca X", "donde esta X", "encuentra X" o "tengo algo sobre X" \
+SIN indicar un dominio concreto, usa buscar_todo (busca en todas las tareas, notas, \
+eventos, recordatorios y listas a la vez). Para saber que etiquetas existen, usa \
+listar_etiquetas.
+20. Etiquetas y subtareas: al crear o editar tareas, notas, eventos o recordatorios \
+puedes pasar 'etiquetas' (una lista, p. ej. ['trabajo','urgente']); para filtrar por \
+etiqueta usa el parametro 'etiqueta'. Para una "subtarea de X" crea la tarea con \
+crear_tarea(padre_id=<id de X>); listar_tareas ya devuelve las subtareas anidadas.
 
 Se breve: responde en una o dos frases salvo que se pida detalle."""

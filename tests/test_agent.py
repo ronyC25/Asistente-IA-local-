@@ -398,3 +398,25 @@ def test_ajustar_args_ultima_semana_de_mes():
     d = dict(out)["listar_eventos"]
     assert d["desde"] == f"{y}-10-25"
     assert d["hasta"] == f"{y}-10-31"
+
+
+def test_ajustar_args_inyecta_busqueda():
+    agent = Agent(_registry(), model="dummy", system_prompt="sys")
+    out = agent._ajustar_args([], "busca las llaves del coche")
+    d = dict(out)
+    assert "buscar_todo" in d
+    assert d["buscar_todo"]["texto"] == "llaves coche"
+
+
+def test_ajustar_args_etiqueta_en_listado():
+    agent = Agent(_registry(), model="dummy", system_prompt="sys")
+    parsed = [("listar_tareas", {})]
+    out = agent._ajustar_args(parsed, "tareas etiquetadas como compras")
+    assert dict(out)["listar_tareas"]["etiqueta"] == "compras"
+
+
+def test_ajustar_args_no_inyecta_busqueda_en_accion():
+    agent = Agent(_registry(), model="dummy", system_prompt="sys")
+    parsed = [("crear_tarea", {"titulo": "x"})]
+    out = agent._ajustar_args(parsed, "crea una tarea y busca las llaves")
+    assert [n for n, _ in out] == ["crear_tarea"]

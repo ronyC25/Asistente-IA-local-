@@ -60,3 +60,16 @@ def test_listar_por_periodo():
     notes.gestionar_notas("crear", contenido="hoy")
     assert notes.consultar_notas("listar", periodo="hoy")["total"] == 1
     assert notes.consultar_notas("listar", periodo="manana")["total"] == 0
+
+
+def test_etiquetas_y_filtro():
+    n = notes.gestionar_notas("crear", contenido="x", etiquetas=["Ideas", "ideas"])
+    assert n["etiquetas"] == ["ideas"]
+    assert notes.consultar_notas("listar", etiqueta="ideas")["total"] == 1
+    assert notes.consultar_notas("listar", etiqueta="otra")["total"] == 0
+
+
+def test_editar_etiquetas():
+    n = notes.gestionar_notas("crear", contenido="x")
+    e = notes.gestionar_notas("editar", id=n["id"], etiquetas=["a", "b"])
+    assert e["etiquetas"] == ["a", "b"]

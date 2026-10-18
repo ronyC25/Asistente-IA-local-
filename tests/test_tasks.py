@@ -99,3 +99,42 @@ def test_listar_tareas_faltan():
     tasks.crear_tarea("X", fecha_limite=futuro)
     r = tasks.listar_tareas()
     assert r["tareas"][0]["faltan"].startswith("en")
+
+
+def test_etiquetas_normalizadas_y_filtro():
+    t = tasks.crear_tarea("Comprar pan", etiquetas=["Compras", "Hogar", "compras"])
+    assert t["etiquetas"] == ["compras", "hogar"]
+    assert tasks.listar_tareas(etiqueta="hogar")["total"] == 1
+    assert tasks.listar_tareas(etiqueta="otra")["total"] == 0
+
+
+def test_editar_etiquetas():
+    t = tasks.crear_tarea("X", etiquetas=["a"])
+    e = tasks.editar_tarea(id=t["id"], etiquetas=["b", "c"])
+    assert e["etiquetas"] == ["b", "c"]
+    vacia = tasks.editar_tarea(id=t["id"], etiquetas="")
+    assert vacia["etiquetas"] == []
+
+
+def test_subtareas_anidadas():
+    padre = tasks.crear_tarea("Proyecto")
+    h1 = tasks.crear_tarea("Paso 1", padre_id=padre["id"])
+    h2 = tasks.crear_tarea("Paso 2", padre_id=padre["id"])
+    res = tasks.listar_tareas()
+    assert res["total"] == 1
+    subs = res["tareas"][0]["subtareas"]
+    assert {s["id"] for s in subs} == {h1["id"], h2["id"]}
+    plano = tasks.listar_tareas(incluir_subtareas=False)
+    assert plano["total"] == 3
+
+
+def test_completar_padre_completa_hijas():
+    padre = tasks.crear_tarea("Proyecto")
+    h = tasks.crear_tarea("Paso", padre_id=padre["id"])
+    tasks.completar_tarea(id=padre["id"])
+    assert tasks.obtener_tarea(h["id"])["estado"] == "completada"
+
+
+def test_padre_id_inexistente():
+    with pytest.raises(ValueError):
+        tasks.crear_tarea("Huerfana", padre_id=999)

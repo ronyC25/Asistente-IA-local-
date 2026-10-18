@@ -8,8 +8,10 @@ import ollama
 
 from .confirm import (
     build_proposal,
+    buscar_termino_de_texto,
     classify_confirmation,
     dominio_lectura,
+    etiqueta_de_texto,
     fecha_de_texto,
     looks_like_action,
     looks_like_query,
@@ -56,7 +58,16 @@ _DOMINIO_TOOL = {
     "listas": "consultar_listas",
     "eventos": "listar_eventos",
     "email": "leer_email",
+    "busqueda": "buscar_todo",
 }
+
+# Herramientas de listado que aceptan el filtro 'etiqueta'.
+_TOOLS_CON_ETIQUETA = (
+    "listar_tareas",
+    "listar_recordatorios",
+    "consultar_notas",
+    "listar_eventos",
+)
 
 
 def _fechas_de_texto(user_text: str) -> dict:
@@ -108,6 +119,8 @@ def _args_dominio(dominio: str, user_text: str | None) -> dict:
         args = {"accion": "listar"}
     elif dominio == "listas":
         args = {"accion": "listar"}
+    elif dominio == "busqueda":
+        args = {"texto": buscar_termino_de_texto(txt) or txt}
     else:
         args = {}
 
@@ -122,6 +135,9 @@ def _args_dominio(dominio: str, user_text: str | None) -> dict:
     if dominio in ("tareas", "recordatorios", "notas", "eventos"):
         fechas = _fechas_de_texto(txt)
         _merge_fechas(args, fechas)
+        etq = etiqueta_de_texto(txt)
+        if etq:
+            args.setdefault("etiqueta", etq)
         if dominio == "eventos" and "periodo" not in fechas and (
             quiere_proximo(txt) or pregunta_cuanto_falta(txt)
         ):
@@ -202,6 +218,7 @@ class Agent:
         orden = orden_de_texto(user_text)
         proximo = quiere_proximo(user_text)
         falta = pregunta_cuanto_falta(user_text)
+        etiqueta = etiqueta_de_texto(user_text)
         ajustado: list[tuple[str, dict]] = []
         for name, args in parsed:
             args = dict(args or {})
@@ -213,6 +230,8 @@ class Agent:
                     args["estado"] = "historial"
             if name in _TOOLS_CON_PERIODO and fechas:
                 _merge_fechas(args, fechas)
+            if name in _TOOLS_CON_ETIQUETA and etiqueta and not args.get("etiqueta"):
+                args["etiqueta"] = etiqueta
             if orden and name == "consultar_notas":
                 args["orden"] = "antiguas" if orden == "antiguas" else "recientes"
                 if orden == "antiguas":

@@ -5,8 +5,11 @@ from datetime import date
 import pytest
 
 from src.brain.confirm import (
+    buscar_termino_de_texto,
     classify_confirmation,
     dominio_lectura,
+    es_busqueda,
+    etiqueta_de_texto,
     fecha_de_texto,
     looks_like_action,
     looks_like_query,
@@ -218,3 +221,29 @@ def test_rango_semana_de_mes():
         date(2026, 10, 25),
         date(2026, 10, 31),
     )
+
+
+@pytest.mark.parametrize(
+    "text",
+    ["busca las llaves", "donde esta el informe", "encuentra a Juan", "buscame las pilas"],
+)
+def test_es_busqueda(text):
+    assert es_busqueda(text)
+
+
+def test_dominio_busqueda():
+    assert dominio_lectura("busca las llaves") == "busqueda"
+    # si hay un dominio explicito, gana el dominio (no 'busqueda')
+    assert dominio_lectura("busca la tarea de compras") == "tareas"
+
+
+def test_buscar_termino_de_texto():
+    assert buscar_termino_de_texto("busca las llaves del coche") == "llaves coche"
+    assert buscar_termino_de_texto("donde esta el informe") == "informe"
+    assert buscar_termino_de_texto("busca") is None
+
+
+def test_etiqueta_de_texto():
+    assert etiqueta_de_texto("tareas etiquetadas como compras") == "compras"
+    assert etiqueta_de_texto("dame las notas con etiqueta ideas") == "ideas"
+    assert etiqueta_de_texto("que tareas tengo") is None

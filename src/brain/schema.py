@@ -11,6 +11,7 @@ from ..tools import (
     notes,
     notify,
     reminders,
+    search,
     tasks,
 )
 from .registry import READ, WRITE
@@ -36,12 +37,40 @@ def _periodo_props() -> dict:
     }
 
 
+def _etiquetas_prop() -> dict:
+    """Propiedad 'etiquetas' (lista) para las herramientas de escritura."""
+    return {
+        "etiquetas": {
+            "type": "array",
+            "items": {"type": "string"},
+            "description": (
+                "Etiquetas/categorias (varias). Ej: ['trabajo', 'urgente']. "
+                "Pasalo como lista de palabras."
+            ),
+        }
+    }
+
+
+def _etiqueta_filtro_prop() -> dict:
+    """Propiedad 'etiqueta' (filtro exacto) para las herramientas de lectura."""
+    return {
+        "etiqueta": {
+            "type": "string",
+            "description": "Filtra por una etiqueta/categoria exacta.",
+        }
+    }
+
+
 def _describe_crear_tarea(a: dict) -> str:
     parts = [f"Crear la tarea «{a.get('titulo', '?')}»"]
     if a.get("prioridad"):
         parts.append(f"prioridad {a['prioridad']}")
     if a.get("fecha_limite"):
         parts.append(f"con fecha limite {a['fecha_limite']}")
+    if a.get("etiquetas"):
+        parts.append(f"etiquetas {a['etiquetas']}")
+    if a.get("padre_id"):
+        parts.append(f"como subtarea de la tarea {a['padre_id']}")
     if a.get("descripcion"):
         parts.append(f"(descripcion: {a['descripcion']})")
     return ", ".join(parts)
@@ -199,6 +228,14 @@ def build_tools() -> list[dict]:
                         "type": "string",
                         "description": "Fecha limite en formato ISO",
                     },
+                    "padre_id": {
+                        "type": "integer",
+                        "description": (
+                            "Id de la tarea padre si esto es una SUBTAREA "
+                            "(opcional)."
+                        ),
+                    },
+                    **_etiquetas_prop(),
                 },
                 "required": ["titulo"],
             },
@@ -237,6 +274,14 @@ def build_tools() -> list[dict]:
                     "limite": {"type": "integer", "description": "Maximo de resultados"},
                     "desde": {"type": "string", "description": "Fecha ISO inicial (opcional)"},
                     "hasta": {"type": "string", "description": "Fecha ISO final (opcional)"},
+                    "incluir_subtareas": {
+                        "type": "boolean",
+                        "description": (
+                            "Si es true (por defecto), cada tarea incluye sus "
+                            "'subtareas' anidadas."
+                        ),
+                    },
+                    **_etiqueta_filtro_prop(),
                     **_periodo_props(),
                 },
             },
@@ -270,6 +315,11 @@ def build_tools() -> list[dict]:
                     "prioridad": {"type": "string", "enum": ["alta", "media", "baja"]},
                     "fecha_limite": {"type": "string"},
                     "estado": {"type": "string", "enum": ["pendiente", "completada"]},
+                    "padre_id": {
+                        "type": "integer",
+                        "description": "Id de la tarea padre (para convertirla en subtarea).",
+                    },
+                    **_etiquetas_prop(),
                 },
             },
             "func": tasks.editar_tarea,
@@ -328,6 +378,7 @@ def build_tools() -> list[dict]:
                         "enum": ["ninguna", "diaria", "semanal", "mensual"],
                         "description": "Repeticion (por defecto ninguna)",
                     },
+                    **_etiquetas_prop(),
                 },
                 "required": ["texto", "cuando"],
             },
@@ -365,6 +416,7 @@ def build_tools() -> list[dict]:
                     "limite": {"type": "integer"},
                     "desde": {"type": "string", "description": "Fecha ISO inicial (opcional)"},
                     "hasta": {"type": "string", "description": "Fecha ISO final (opcional)"},
+                    **_etiqueta_filtro_prop(),
                     **_periodo_props(),
                 },
             },
@@ -473,6 +525,7 @@ def build_tools() -> list[dict]:
                     "todo_el_dia": {"type": "boolean"},
                     "lugar": {"type": "string"},
                     "notas": {"type": "string"},
+                    **_etiquetas_prop(),
                 },
                 "required": ["titulo", "inicio"],
             },
@@ -510,6 +563,7 @@ def build_tools() -> list[dict]:
                         ),
                     },
                     "limite": {"type": "integer"},
+                    **_etiqueta_filtro_prop(),
                     **_periodo_props(),
                 },
             },
@@ -530,6 +584,7 @@ def build_tools() -> list[dict]:
                     "lugar": {"type": "string"},
                     "notas": {"type": "string"},
                     "estado": {"type": "string", "enum": ["activo", "cancelado"]},
+                    **_etiquetas_prop(),
                 },
                 "required": ["id"],
             },
@@ -608,6 +663,7 @@ def build_tools() -> list[dict]:
                         "description": "recientes (por defecto) o antiguas (la mas vieja primero)",
                     },
                     "limite": {"type": "integer", "description": "Maximo de resultados"},
+                    **_etiqueta_filtro_prop(),
                     **_periodo_props(),
                 },
             },
@@ -633,6 +689,7 @@ def build_tools() -> list[dict]:
                     },
                     "titulo": {"type": "string"},
                     "contenido": {"type": "string"},
+                    **_etiquetas_prop(),
                 },
                 "required": ["accion"],
             },
@@ -701,5 +758,54 @@ def build_tools() -> list[dict]:
             "func": lists.gestionar_listas,
             "kind": WRITE,
             "describe": _describe_gestionar_listas,
+        },
+        {
+            "name": "buscar_todo",
+            "description": (
+                "Busca un texto en TODOS los datos locales a la vez (tareas, notas, "
+                "eventos, recordatorios y listas). Usala para 'busca X', 'donde esta "
+                "X' o 'encuentra X' cuando NO se especifica un dominio. Devuelve los "
+                "resultados agrupados por dominio."
+            ),
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "texto": {
+                        "type": "string",
+                        "description": "Texto a buscar (palabra o frase).",
+                    },
+                    "limite": {
+                        "type": "integer",
+                        "description": "Maximo de resultados por dominio (por defecto 10).",
+                    },
+                    "dominios": {
+                        "type": "array",
+                        "items": {
+                            "type": "string",
+                            "enum": [
+                                "tareas",
+                                "notas",
+                                "eventos",
+                                "recordatorios",
+                                "listas",
+                            ],
+                        },
+                        "description": "Opcional: limita la busqueda a estos dominios.",
+                    },
+                },
+                "required": ["texto"],
+            },
+            "func": search.buscar_todo,
+            "kind": READ,
+        },
+        {
+            "name": "listar_etiquetas",
+            "description": (
+                "Lista todas las etiquetas/categorias usadas (tareas, notas, eventos "
+                "y recordatorios) con cuantas veces aparecen y en que dominios."
+            ),
+            "parameters": {"type": "object", "properties": {}},
+            "func": search.listar_etiquetas,
+            "kind": READ,
         },
     ]

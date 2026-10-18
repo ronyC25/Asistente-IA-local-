@@ -7,6 +7,7 @@ from datetime import date, datetime
 from ..config import settings
 from ..db import connect
 from ..timeutil import faltan_texto, parse_datetime, resolver_periodo
+from ._tags import filtro_params, filtro_sql, lista as tags_lista, normalizar as tags_norm
 
 _PRIORIDADES = {
     "alta": "alta",
@@ -31,16 +32,27 @@ def _conn() -> sqlite3.Connection:
             prioridad     TEXT NOT NULL DEFAULT 'media',
             estado        TEXT NOT NULL DEFAULT 'pendiente',
             fecha_limite  TEXT,
+            etiquetas     TEXT,
+            parent_id     INTEGER,
             creada_en     TEXT NOT NULL DEFAULT (datetime('now')),
             completada_en TEXT,
             actualizada_en TEXT NOT NULL DEFAULT (datetime('now'))
         )"""
     )
+    # Migracion: columnas anadidas despues (etiquetas, subtareas).
+    cols = {r[1] for r in conn.execute("PRAGMA table_info(tasks)")}
+    if "etiquetas" not in cols:
+        conn.execute("ALTER TABLE tasks ADD COLUMN etiquetas TEXT")
+    if "parent_id" not in cols:
+        conn.execute("ALTER TABLE tasks ADD COLUMN parent_id INTEGER")
+    conn.commit()
     return conn
 
 
 def _row(row: sqlite3.Row) -> dict:
-    return dict(row)
+    d = dict(row)
+    d["etiquetas"] = tags_lista(d.get("etiquetas"))
+    return d
 
 
 def _norm_prioridad(p: str | None) -> str | None:
@@ -88,17 +100,26 @@ def crear_tarea(
     descripcion: str | None = None,
     prioridad: str | None = "media",
     fecha_limite: str | None = None,
+    etiquetas=None,
+    padre_id: int | None = None,
 ) -> dict:
     if not titulo or not str(titulo).strip():
         raise ValueError("el titulo de la tarea no puede estar vacio")
     prio = _norm_prioridad(prioridad) or "media"
     fecha = _norm_fecha(fecha_limite)
+    tags = tags_norm(etiquetas)
+    pid = int(padre_id) if padre_id not in (None, "", 0) else None
     conn = _conn()
     try:
+        if pid is not None:
+            padre = conn.execute("SELECT id FROM tasks WHERE id = ?", (pid,)).fetchone()
+            if padre is None:
+                raise ValueError(f"no existe la tarea padre con id {pid}")
         cur = conn.execute(
-            """INSERT INTO tasks (titulo, descripcion, prioridad, estado, fecha_limite)
-               VALUES (?, ?, ?, 'pendiente', ?)""",
-            (str(titulo).strip(), descripcion, prio, fecha),
+            """INSERT INTO tasks
+               (titulo, descripcion, prioridad, estado, fecha_limite, etiquetas, parent_id)
+               VALUES (?, ?, ?, 'pendiente', ?, ?, ?)""",
+            (str(titulo).strip(), descripcion, prio, fecha, tags, pid),
         )
         conn.commit()
         row = conn.execute("SELECT * FROM tasks WHERE id = ?", (cur.lastrowid,)).fetchone()
@@ -117,6 +138,8 @@ def listar_tareas(
     dias: int | None = None,
     desde: str | None = None,
     hasta: str | None = None,
+    etiqueta: str | None = None,
+    incluir_subtareas: bool = True,
 ) -> dict:
     estado = (estado or "pendientes").strip().lower()
     where: list[str] = []
@@ -132,6 +155,9 @@ def listar_tareas(
     if prioridad:
         where.append("prioridad = ?")
         params.append(_norm_prioridad(prioridad))
+    if etiqueta:
+        where.append(filtro_sql("etiquetas"))
+        params.extend(filtro_params(etiqueta))
     if periodo:
         d, h = resolver_periodo(periodo, dias)
         where.append("fecha_limite IS NOT NULL")
@@ -160,19 +186,27 @@ def listar_tareas(
     try:
         rows = conn.execute(
             f"""SELECT * FROM tasks {clause}
-                ORDER BY (fecha_limite IS NULL), fecha_limite, id DESC
-                LIMIT ?""",
-            (*params, int(limite)),
+                ORDER BY (fecha_limite IS NULL), fecha_limite, id DESC""",
+            tuple(params),
         ).fetchall()
     finally:
         conn.close()
     ahora = datetime.now()
-    tareas: list[dict] = []
-    for r in rows:
+
+    def _out(r: sqlite3.Row) -> dict:
         base = _row(r)
         d = {
             k: base[k]
-            for k in ("id", "titulo", "descripcion", "prioridad", "estado", "fecha_limite")
+            for k in (
+                "id",
+                "titulo",
+                "descripcion",
+                "prioridad",
+                "estado",
+                "fecha_limite",
+                "etiquetas",
+                "parent_id",
+            )
         }
         fl = d.get("fecha_limite")
         d["faltan"] = None
@@ -181,7 +215,26 @@ def listar_tareas(
                 d["faltan"] = faltan_texto(datetime.fromisoformat(fl), ahora)
             except (ValueError, TypeError):
                 d["faltan"] = None
-        tareas.append(d)
+        return d
+
+    items = [_out(r) for r in rows]
+    limite = int(limite)
+    if not incluir_subtareas:
+        tareas = items[:limite]
+        return {"total": len(tareas), "tareas": tareas}
+
+    by_id = {t["id"]: t for t in items}
+    hijos: dict[int, list] = {}
+    for t in items:
+        pid = t.get("parent_id")
+        if pid is not None and pid in by_id:
+            hijos.setdefault(pid, []).append(t)
+    raices = [
+        t for t in items if not (t.get("parent_id") is not None and t["parent_id"] in by_id)
+    ]
+    for t in items:
+        t["subtareas"] = hijos.get(t["id"], [])
+    tareas = raices[:limite]
     return {"total": len(tareas), "tareas": tareas}
 
 
@@ -199,17 +252,30 @@ def completar_tarea(id: int | None = None, titulo: str | None = None) -> dict:
     conn = _conn()
     try:
         row = _find(conn, id, titulo)
-        if row["estado"] == "completada":
-            return _row(row)
-        conn.execute(
-            """UPDATE tasks
-               SET estado = 'completada',
-                   completada_en = datetime('now'),
-                   actualizada_en = datetime('now')
-               WHERE id = ?""",
-            (row["id"],),
-        )
-        conn.commit()
+        # Completar tambien las subtareas (descendientes) de la tarea.
+        ids = [row["id"]]
+        frontera = [row["id"]]
+        while frontera:
+            ph = ", ".join("?" for _ in frontera)
+            hijos = [
+                r["id"]
+                for r in conn.execute(
+                    f"SELECT id FROM tasks WHERE parent_id IN ({ph})", frontera
+                ).fetchall()
+            ]
+            ids.extend(hijos)
+            frontera = hijos
+        if row["estado"] != "completada" or len(ids) > 1:
+            ph = ", ".join("?" for _ in ids)
+            conn.execute(
+                f"""UPDATE tasks
+                    SET estado = 'completada',
+                        completada_en = datetime('now'),
+                        actualizada_en = datetime('now')
+                    WHERE id IN ({ph})""",
+                ids,
+            )
+            conn.commit()
         row = conn.execute("SELECT * FROM tasks WHERE id = ?", (row["id"],)).fetchone()
     finally:
         conn.close()
@@ -224,6 +290,8 @@ def editar_tarea(
     prioridad: str | None = None,
     fecha_limite: str | None = None,
     estado: str | None = None,
+    etiquetas=None,
+    padre_id: int | None = None,
 ) -> dict:
     conn = _conn()
     try:
@@ -248,6 +316,12 @@ def editar_tarea(
                 raise ValueError("estado no valido: usa pendiente o completada")
             sets.append("estado = ?")
             params.append(est)
+        if etiquetas is not None:
+            sets.append("etiquetas = ?")
+            params.append(tags_norm(etiquetas))
+        if padre_id is not None:
+            sets.append("parent_id = ?")
+            params.append(int(padre_id) if padre_id not in ("", 0) else None)
         if not sets:
             return _row(row)
         sets.append("actualizada_en = datetime('now')")

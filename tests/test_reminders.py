@@ -140,3 +140,10 @@ def test_listar_recordatorios_faltan():
     reminders.crear_recordatorio("X", _futuro(60))
     r = reminders.listar_recordatorios()
     assert r["recordatorios"][0]["faltan"].startswith("en")
+
+
+def test_etiquetas_y_filtro():
+    r = reminders.crear_recordatorio("X", _futuro(60), etiquetas=["Salud"])
+    assert r["etiquetas"] == ["salud"]
+    assert reminders.listar_recordatorios(etiqueta="salud")["total"] == 1
+    assert reminders.listar_recordatorios(etiqueta="otra")["total"] == 0

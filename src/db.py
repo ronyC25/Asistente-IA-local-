@@ -12,6 +12,8 @@ CREATE TABLE IF NOT EXISTS tasks (
     prioridad     TEXT NOT NULL DEFAULT 'media',
     estado        TEXT NOT NULL DEFAULT 'pendiente',
     fecha_limite  TEXT,
+    etiquetas     TEXT,
+    parent_id     INTEGER,
     creada_en     TEXT NOT NULL DEFAULT (datetime('now')),
     completada_en TEXT,
     actualizada_en TEXT NOT NULL DEFAULT (datetime('now'))

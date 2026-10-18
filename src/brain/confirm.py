@@ -107,6 +107,12 @@ _QUERY_WORDS = {
     "revisar",
     "revisame",
     "revisen",
+    "busca",
+    "buscar",
+    "buscame",
+    "encuentra",
+    "encuentrame",
+    "localiza",
     "lista",
     "listar",
     "listame",
@@ -192,7 +198,8 @@ def dominio_lectura(text: str) -> str | None:
     """Detecta el dominio de datos de una consulta (p. ej. 'notificaciones').
 
     Devuelve una clave de dominio ('tareas', 'recordatorios', 'notas', 'listas',
-    'eventos', 'email') o None. 'notificaciones' cuenta como recordatorios.
+    'eventos', 'email', 'busqueda') o None. 'notificaciones' cuenta como
+    recordatorios. 'busqueda' = pedir buscar algo sin indicar dominio.
     """
     t = _norm(text)
     if not t:
@@ -202,7 +209,108 @@ def dominio_lectura(text: str) -> str | None:
         for k in claves:
             if (" " in k and k in t) or (" " not in k and k in palabras):
                 return dominio
+    if es_busqueda(text):
+        return "busqueda"
     return None
+
+
+_BUSQUEDA_WORDS = {
+    "busca",
+    "buscar",
+    "buscame",
+    "buscarlo",
+    "encuentra",
+    "encuentrame",
+    "localiza",
+    "localizame",
+}
+_BUSQUEDA_STOP = {
+    "busca",
+    "buscar",
+    "buscame",
+    "buscarlo",
+    "encuentra",
+    "encuentrame",
+    "localiza",
+    "localizame",
+    "donde",
+    "esta",
+    "estan",
+    "queda",
+    "quedan",
+    "el",
+    "la",
+    "los",
+    "las",
+    "un",
+    "una",
+    "unos",
+    "unas",
+    "de",
+    "del",
+    "en",
+    "sobre",
+    "algo",
+    "que",
+    "por",
+    "favor",
+    "mi",
+    "mis",
+    "todo",
+    "todos",
+    "toda",
+    "todas",
+    "hay",
+    "existe",
+    "existen",
+    "me",
+    "puedes",
+    "puede",
+    "a",
+    "al",
+}
+
+
+def es_busqueda(text: str) -> bool:
+    """True si el usuario pide buscar algo (sin dominio concreto)."""
+    t = _norm(text)
+    if not t:
+        return False
+    if set(t.split()) & _BUSQUEDA_WORDS:
+        return True
+    return any(
+        frase in t
+        for frase in ("donde esta", "donde estan", "donde queda", "donde quedan")
+    )
+
+
+def buscar_termino_de_texto(text: str) -> str | None:
+    """Extrae el termino a buscar quitando palabras-gatillo ('busca', 'donde esta'...).
+
+    Devuelve None si tras limpiar no queda nada util.
+    """
+    t = _norm(text)
+    if not t:
+        return None
+    palabras = [w for w in t.split() if w not in _BUSQUEDA_STOP]
+    termino = " ".join(palabras).strip()
+    return termino or None
+
+
+def etiqueta_de_texto(text: str) -> str | None:
+    """Extrae una etiqueta de frases como 'etiquetadas como compras' o 'etiqueta X'."""
+    t = _norm_keep(text)
+    if not t:
+        return None
+    m = re.search(
+        r"(?:etiquetad[oa]s?|etiqueta|categoria|categorias?|tag)\s+"
+        r"(?:como\s+)?(?:de\s+|la\s+|el\s+|las\s+|los\s+|con\s+)?([a-z0-9\- ]{2,40})",
+        t,
+    )
+    if not m:
+        return None
+    cand = re.split(r"\b(?:de|del|en|para|que|con|y|o|por)\b", m.group(1))[0].strip()
+    return cand or None
 
 
 def orden_de_texto(text: str) -> str | None:

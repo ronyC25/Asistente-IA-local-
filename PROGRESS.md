@@ -46,7 +46,7 @@ src/
   brain/
     agent.py         # loop de tool-calling + confirmacion + guardarrailes
     prompts.py       # system prompt
-    schema.py        # definicion JSON de las 22 herramientas
+    schema.py        # definicion JSON de las 25 herramientas
     registry.py      # registro de tools (read/write)
     confirm.py       # clasificacion si/no + deteccion de intencion
   tools/
@@ -54,6 +54,8 @@ src/
     reminders.py     # recordatorios (CRUD + recurrencia)
     notes.py         # notas (consultar/gestionar)
     lists.py         # listas/checklists (consultar/gestionar)
+    search.py        # busqueda global (buscar_todo) + listar_etiquetas
+    _tags.py         # utilidades de etiquetas (normalizacion/filtro)
     notify.py        # notificaciones Windows (toast)
     messaging.py     # Telegram
     email_tool.py    # email IMAP/SMTP
@@ -72,18 +74,29 @@ avatar/              # app Live2D + overlay Electron (Fase 7)
   electron/          #   ventana overlay transparente y click-through
   setup_assets.ps1   #   descarga librerias + modelos Haru/Wanko (no versionados)
 start*.ps1           # lanzadores (venv + modos + start-all + auth)
-tests/               # 227 tests (pytest)
+tests/               # 251 tests (pytest)
 ```
 
-## Herramientas del agente (23)
+## Herramientas del agente (25)
 
-- **Tareas**: `crear_tarea`, `listar_tareas`, `completar_tarea`, `editar_tarea`, `eliminar_tarea`
-- **Recordatorios**: `crear_recordatorio` (con `recurrencia`), `listar_recordatorios`, `cancelar_recordatorio`
+- **Tareas**: `crear_tarea` (con `etiquetas` y `padre_id` para subtareas), `listar_tareas`
+  (anida `subtareas`), `completar_tarea` (completa tambien las hijas), `editar_tarea`,
+  `eliminar_tarea`
+- **Recordatorios**: `crear_recordatorio` (con `recurrencia` y `etiquetas`),
+  `listar_recordatorios`, `cancelar_recordatorio`
 - **Notas**: `consultar_notas` (read), `gestionar_notas` (write)
 - **Listas/checklists**: `consultar_listas` (read), `gestionar_listas` (write)
+- **Busqueda/organizacion**: `buscar_todo` (busca texto en todos los datos),
+  `listar_etiquetas`
 - **Notif/Mensajeria/Email**: `enviar_notificacion_windows`, `enviar_telegram`, `leer_email`, `enviar_email`
 - **Calendario**: `crear_evento`, `listar_eventos`, `editar_evento`, `cancelar_evento`, `exportar_ics`, `sincronizar_calendario`
 - **Sistema**: `fecha_hora_actual`
+
+Etiquetas/categorias: tareas, notas, eventos y recordatorios aceptan `etiquetas`
+(lista) al crear/editar y filtran por `etiqueta` (normalizadas en `_tags.py`).
+Subtareas: `crear_tarea(padre_id=...)`; `listar_tareas` devuelve cada tarea con sus
+`subtareas` anidadas. Busqueda: `buscar_todo` (dominio `busqueda` + extraccion
+determinista del termino en `agent._ajustar_args`).
 
 Regla: las de **lectura** se ejecutan al instante; las de **escritura** piden
 confirmacion ("si/no"). Las tools de notas/listas estan **agrupadas** (un grupo de

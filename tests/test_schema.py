@@ -41,6 +41,8 @@ def test_tools_esperadas_presentes():
         "gestionar_notas",
         "consultar_listas",
         "gestionar_listas",
+        "buscar_todo",
+        "listar_etiquetas",
     }
     assert esperadas <= names
 
@@ -55,3 +57,5 @@ def test_flags_lectura_escritura():
     assert tools["consultar_notas"]["kind"] == "read"
     assert tools["gestionar_listas"]["kind"] == "write"
     assert tools["consultar_listas"]["kind"] == "read"
+    assert tools["buscar_todo"]["kind"] == "read"
+    assert tools["listar_etiquetas"]["kind"] == "read"

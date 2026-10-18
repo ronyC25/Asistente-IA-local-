@@ -10,12 +10,14 @@ import sqlite3
 from ..config import settings
 from ..db import connect
 from ..timeutil import parse_datetime, resolver_periodo
+from ._tags import filtro_params, filtro_sql, lista as tags_lista, normalizar as tags_norm
 
 _SCHEMA = """
 CREATE TABLE IF NOT EXISTS notes (
     id             INTEGER PRIMARY KEY AUTOINCREMENT,
     titulo         TEXT,
     contenido      TEXT NOT NULL,
+    etiquetas      TEXT,
     creada_en      TEXT NOT NULL DEFAULT (datetime('now')),
     actualizada_en TEXT NOT NULL DEFAULT (datetime('now'))
 );
@@ -25,11 +27,17 @@ CREATE TABLE IF NOT EXISTS notes (
 def _conn() -> sqlite3.Connection:
     conn = connect(settings.database)
     conn.execute(_SCHEMA)
+    cols = {r[1] for r in conn.execute("PRAGMA table_info(notes)")}
+    if "etiquetas" not in cols:
+        conn.execute("ALTER TABLE notes ADD COLUMN etiquetas TEXT")
+        conn.commit()
     return conn
 
 
 def _row(row: sqlite3.Row) -> dict:
-    return dict(row)
+    d = dict(row)
+    d["etiquetas"] = tags_lista(d.get("etiquetas"))
+    return d
 
 
 def consultar_notas(
@@ -41,11 +49,13 @@ def consultar_notas(
     desde: str | None = None,
     hasta: str | None = None,
     orden: str = "recientes",
+    etiqueta: str | None = None,
 ) -> dict:
     """Lee notas. accion: 'listar' o 'buscar' (por 'texto').
 
     Filtra por fecha de creacion (``creada_en``) con ``periodo``/``dias`` o
-    ``desde``/``hasta``; ``orden`` = 'recientes' (por defecto) o 'antiguas'.
+    ``desde``/``hasta``; ``orden`` = 'recientes' (por defecto) o 'antiguas';
+    ``etiqueta`` filtra por etiqueta exacta.
     """
     accion = (accion or "listar").strip().lower()
     limite = max(1, int(limite or 20))
@@ -61,6 +71,9 @@ def consultar_notas(
                 patron = f"%{str(texto).strip()}%"
                 where.append("(titulo LIKE ? OR contenido LIKE ?)")
                 params.extend([patron, patron])
+            if etiqueta:
+                where.append(filtro_sql("etiquetas"))
+                params.extend(filtro_params(etiqueta))
             if periodo:
                 d, h = resolver_periodo(periodo, dias)
                 where.append("date(creada_en, 'localtime') >= date(?)")
@@ -93,6 +106,7 @@ def gestionar_notas(
     id: int | None = None,
     titulo: str | None = None,
     contenido: str | None = None,
+    etiquetas=None,
 ) -> dict:
     """Modifica notas. accion: 'crear', 'editar' o 'eliminar'."""
     accion = (accion or "").strip().lower()
@@ -102,10 +116,11 @@ def gestionar_notas(
             if not contenido or not str(contenido).strip():
                 raise ValueError("la nota necesita 'contenido'.")
             cur = conn.execute(
-                "INSERT INTO notes (titulo, contenido) VALUES (?, ?)",
+                "INSERT INTO notes (titulo, contenido, etiquetas) VALUES (?, ?, ?)",
                 (
                     (str(titulo).strip() if titulo else None),
                     str(contenido).strip(),
+                    tags_norm(etiquetas),
                 ),
             )
             conn.commit()
@@ -130,8 +145,11 @@ def gestionar_notas(
             if contenido is not None:
                 sets.append("contenido = ?")
                 params.append(str(contenido).strip())
+            if etiquetas is not None:
+                sets.append("etiquetas = ?")
+                params.append(tags_norm(etiquetas))
             if not sets:
-                raise ValueError("no indicaste que cambiar (titulo o contenido).")
+                raise ValueError("no indicaste que cambiar (titulo, contenido o etiquetas).")
             sets.append("actualizada_en = datetime('now')")
             params.append(int(id))
             conn.execute(f"UPDATE notes SET {', '.join(sets)} WHERE id = ?", params)

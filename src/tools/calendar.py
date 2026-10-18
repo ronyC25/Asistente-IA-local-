@@ -14,6 +14,7 @@ from pathlib import Path
 from ..config import settings
 from ..db import connect
 from ..timeutil import faltan_texto, parse_datetime, resolver_periodo
+from ._tags import filtro_params, filtro_sql, lista as tags_lista, normalizar as tags_norm
 
 log = logging.getLogger("asistente.calendar")
 
@@ -26,6 +27,7 @@ CREATE TABLE IF NOT EXISTS events (
     todo_el_dia   INTEGER NOT NULL DEFAULT 0,
     lugar         TEXT,
     notas         TEXT,
+    etiquetas     TEXT,
     estado        TEXT NOT NULL DEFAULT 'activo',
     creado_en     TEXT NOT NULL DEFAULT (datetime('now')),
     actualizado_en TEXT NOT NULL DEFAULT (datetime('now')),
@@ -46,6 +48,7 @@ CREATE TABLE IF NOT EXISTS sync_meta (
 
 # Columnas anadidas despues (migracion de BD existentes).
 _GCAL_COLUMNS = {
+    "etiquetas": "TEXT",
     "gcal_id": "TEXT",
     "gcal_updated": "TEXT",
     "gcal_etag": "TEXT",
@@ -74,6 +77,7 @@ def _row(row: sqlite3.Row) -> dict:
     d["todo_el_dia"] = bool(d["todo_el_dia"])
     if "pending_push" in d:
         d["pending_push"] = bool(d["pending_push"])
+    d["etiquetas"] = tags_lista(d.get("etiquetas"))
     return d
 
 
@@ -111,6 +115,7 @@ def crear_evento(
     todo_el_dia: bool = False,
     lugar: str | None = None,
     notas: str | None = None,
+    etiquetas=None,
 ) -> dict:
     if not titulo or not str(titulo).strip():
         raise ValueError("el titulo del evento no puede estar vacio")
@@ -122,8 +127,8 @@ def crear_evento(
     try:
         cur = conn.execute(
             """INSERT INTO events
-               (titulo, inicio, fin, todo_el_dia, lugar, notas, pending_push)
-               VALUES (?, ?, ?, ?, ?, ?, 1)""",
+               (titulo, inicio, fin, todo_el_dia, lugar, notas, etiquetas, pending_push)
+               VALUES (?, ?, ?, ?, ?, ?, ?, 1)""",
             (
                 str(titulo).strip(),
                 ini.isoformat(),
@@ -131,6 +136,7 @@ def crear_evento(
                 1 if todo_el_dia else 0,
                 lugar,
                 notas,
+                tags_norm(etiquetas),
             ),
         )
         conn.commit()
@@ -150,11 +156,15 @@ def listar_eventos(
     periodo: str | None = None,
     dias: int | None = None,
     orden: str | None = None,
+    etiqueta: str | None = None,
 ) -> dict:
     where: list[str] = []
     params: list = []
     if not incluir_cancelados:
         where.append("estado = 'activo'")
+    if etiqueta:
+        where.append(filtro_sql("etiquetas"))
+        params.extend(filtro_params(etiqueta))
     o = str(orden or "").lower()
     buscar_todo = o in ("antiguos", "antiguo")
     if periodo:
@@ -198,7 +208,17 @@ def listar_eventos(
         base = _row(r)
         d = {
             k: base[k]
-            for k in ("id", "titulo", "inicio", "fin", "todo_el_dia", "lugar", "notas", "estado")
+            for k in (
+                "id",
+                "titulo",
+                "inicio",
+                "fin",
+                "todo_el_dia",
+                "lugar",
+                "notas",
+                "etiquetas",
+                "estado",
+            )
         }
         try:
             d["faltan"] = faltan_texto(datetime.fromisoformat(d["inicio"]), ahora)
@@ -227,6 +247,7 @@ def editar_evento(
     lugar: str | None = None,
     notas: str | None = None,
     estado: str | None = None,
+    etiquetas=None,
 ) -> dict:
     conn = _conn()
     try:
@@ -251,6 +272,9 @@ def editar_evento(
         if notas is not None:
             sets.append("notas = ?")
             params.append(notas)
+        if etiquetas is not None:
+            sets.append("etiquetas = ?")
+            params.append(tags_norm(etiquetas))
         if estado is not None:
             est = str(estado).strip().lower()
             if est not in {"activo", "cancelado"}:

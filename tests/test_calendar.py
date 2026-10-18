@@ -133,3 +133,10 @@ def test_listar_evento_mismo_dia():
     r = calendar.listar_eventos(desde=fecha, hasta=fecha)
     assert r["total"] == 1
     assert r["eventos"][0]["titulo"] == "EventoDia"
+
+
+def test_etiquetas_y_filtro():
+    e = calendar.crear_evento("Reunion", _futuro(1), etiquetas=["Trabajo"])
+    assert e["etiquetas"] == ["trabajo"]
+    assert calendar.listar_eventos(etiqueta="trabajo")["total"] == 1
+    assert calendar.listar_eventos(etiqueta="otra")["total"] == 0
