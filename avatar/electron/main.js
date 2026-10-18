@@ -6,8 +6,8 @@ const path = require("path");
 // Sin cache HTTP: el overlay siempre carga la version actual de index.html/main.js.
 app.commandLine.appendSwitch("disable-http-cache");
 
-const URL = process.env.JARVIS_URL || "http://127.0.0.1:8000/avatar/";
-const TIMER_URL = new URL("timer.html", URL).href;
+const AVATAR_URL = process.env.JARVIS_URL || "http://127.0.0.1:8000/avatar/";
+const TIMER_URL = new URL("timer.html", AVATAR_URL).href;
 const W = 380;
 const H = 500;
 const MARGIN = 30;
@@ -86,10 +86,10 @@ function createWindow() {
   // Si falla la carga (backend aun no levantado), reintenta.
   win.webContents.on("did-fail-load", (_e, code, desc, url) => {
     console.error(`[load-fail] ${code} ${desc} ${url}`);
-    setTimeout(() => win && win.loadURL(URL), 3000);
+    setTimeout(() => win && win.loadURL(AVATAR_URL), 3000);
   });
 
-  win.loadURL(URL);
+  win.loadURL(AVATAR_URL);
 
   // F12 / Ctrl+Shift+I abren las DevTools (util para depurar el avatar).
   win.webContents.on("before-input-event", (event, input) => {
