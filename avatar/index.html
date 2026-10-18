@@ -78,6 +78,11 @@
     #dot.thinking { background: #f5b942; box-shadow: 0 0 10px #f5b942; }
     #dot.speaking { background: var(--accent); box-shadow: 0 0 10px var(--accent); }
     #wakeup { color: var(--muted, #8b97b3); }
+    #timerBtn { transition: background .2s, color .2s, opacity .2s; }
+    #timerBtn.idle { background: #33405f; color: var(--text); opacity: .85; }
+    #timerBtn.work { background: var(--accent); color: #041024; }
+    #timerBtn.break { background: var(--accent2); color: #041024; }
+    #timerBtn.paused { background: #f5b942; color: #241a00; }
   </style>
 </head>
 <body>
@@ -103,7 +108,7 @@
     <div id="row2">
       <span id="modelLabel">Avatar:</span>
       <select id="modelSel" title="Elegir avatar"></select>
-      <button id="timerBtn" class="ghost" style="display:none" title="Abrir temporizador">⏱</button>
+      <button id="timerBtn" class="ghost idle" title="Reloj / Temporizador">🕐</button>
       <button id="mic" class="on" title="Activar/desactivar microfono">Mic ON</button>
       <button id="expand" class="ghost" title="Ver el mensaje completo">Ver todo</button>
     </div>

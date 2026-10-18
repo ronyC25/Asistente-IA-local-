@@ -30,34 +30,36 @@ _CLIENTES: set = set()
 _LOOP = None
 
 
-def notificar_avatar(texto: str) -> bool:
+def notificar_avatar(texto: str, wav: bytes | None = None) -> bool:
     """Hace hablar a los avatares conectados. True si habia alguno.
 
+    ``wav`` (opcional): audio ya sintetizado (aviso inmediato, sin TTS).
     Pensado para llamarse desde otro hilo (p. ej. el scheduler).
     """
     if not texto or not _CLIENTES or _LOOP is None or _LOOP.is_closed():
         return False
     try:
-        asyncio.run_coroutine_threadsafe(_hablar_en_avatares(texto), _LOOP)
+        asyncio.run_coroutine_threadsafe(_hablar_en_avatares(texto, wav), _LOOP)
         return True
     except Exception:  # noqa: BLE001
         log.exception("no se pudo avisar al avatar")
         return False
 
 
-async def _hablar_en_avatares(texto: str) -> None:
+async def _hablar_en_avatares(texto: str, wav: bytes | None = None) -> None:
     # Primero el texto (asi el avatar lo muestra aunque falle el TTS)...
     for ws in list(_CLIENTES):
         try:
             await ws.send_json({"type": "reply", "text": texto})
         except Exception:  # noqa: BLE001
             _CLIENTES.discard(ws)
-    # ...y despues la voz.
-    try:
-        wav = await asyncio.to_thread(tts.sintetizar_wav_bytes, texto)
-    except Exception:  # noqa: BLE001
-        log.exception("no se pudo sintetizar la voz del aviso")
-        return
+    # ...y despues la voz (pre-sintetizada o al vuelo).
+    if wav is None:
+        try:
+            wav = await asyncio.to_thread(tts.sintetizar_wav_bytes, texto)
+        except Exception:  # noqa: BLE001
+            log.exception("no se pudo sintetizar la voz del aviso")
+            return
     if not wav:
         return
     for ws in list(_CLIENTES):

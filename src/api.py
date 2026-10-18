@@ -58,6 +58,7 @@ class TtsRequest(BaseModel):
 
 class SayRequest(BaseModel):
     texto: str
+    wav_b64: str | None = None
 
 
 class TimerRequest(BaseModel):
@@ -156,7 +157,15 @@ def avatar_say(req: SayRequest) -> dict:
     """Hace hablar al avatar (usado por el scheduler de otros procesos)."""
     from .avatar import notificar_avatar
 
-    return {"ok": notificar_avatar(req.texto)}
+    wav = None
+    if req.wav_b64:
+        try:
+            import base64
+
+            wav = base64.b64decode(req.wav_b64)
+        except Exception:  # noqa: BLE001
+            wav = None
+    return {"ok": notificar_avatar(req.texto, wav)}
 
 
 @app.get("/temporizadores")

@@ -8,6 +8,7 @@ por temporizador.
 from __future__ import annotations
 
 import sqlite3
+import threading
 from datetime import datetime, timedelta
 
 from ..config import settings
@@ -29,7 +30,9 @@ CREATE TABLE IF NOT EXISTS timers (
     trabajo_min  INTEGER,
     descanso_min INTEGER,
     descanso_largo_min INTEGER,
-    ciclos       INTEGER
+    ciclos       INTEGER,
+    aviso_texto  TEXT,
+    aviso_wav    BLOB
 );
 """
 
@@ -39,6 +42,8 @@ _COLUMNS = {
     "descanso_min": "INTEGER",
     "descanso_largo_min": "INTEGER",
     "ciclos": "INTEGER",
+    "aviso_texto": "TEXT",
+    "aviso_wav": "BLOB",
 }
 
 _INICIAR = {"iniciar", "empezar", "crear", "nueva", "nuevo", "start", "comenzar", "lanzar"}
@@ -156,6 +161,7 @@ def iniciar(
         ).fetchone()
     finally:
         conn.close()
+    _preparar_aviso(row["id"])
     return _row(row)
 
 
@@ -352,6 +358,8 @@ def avanzar(id: int, fin_esperado: str | None = None) -> bool:
     cambio, el UPDATE no afecta filas y se devuelve False.
     """
     conn = _conn()
+    claimed = False
+    reponer = False
     try:
         row = conn.execute("SELECT * FROM timers WHERE id = ?", (int(id),)).fetchone()
         if row is None:
@@ -367,29 +375,106 @@ def avanzar(id: int, fin_esperado: str | None = None) -> bool:
                 (int(id), *extra),
             )
             conn.commit()
-            return cur.rowcount == 1
-        p = _params(_row(row))
-        fase = row["fase"]
-        ciclo = int(row["ciclo"])
-        if fase == "trabajo":
-            if p["ciclos"] > 0 and ciclo % p["ciclos"] == 0:
-                nueva, mins = "descanso_largo", p["descanso_largo_min"]
-            else:
-                nueva, mins = "descanso", p["descanso_min"]
-            nuevo_ciclo = ciclo
+            claimed = cur.rowcount == 1
         else:
-            nueva, mins = "trabajo", p["trabajo_min"]
-            nuevo_ciclo = ciclo + 1
-        fin = datetime.now() + timedelta(minutes=mins)
-        cur = conn.execute(
-            f"""UPDATE timers SET fase = ?, fin = ?, duracion_min = ?, ciclo = ?
-                WHERE id = ? AND {guard}""",
-            (nueva, fin.isoformat(timespec="seconds"), mins, nuevo_ciclo, int(id), *extra),
-        )
-        conn.commit()
-        return cur.rowcount == 1
+            p = _params(_row(row))
+            fase = row["fase"]
+            ciclo = int(row["ciclo"])
+            if fase == "trabajo":
+                if p["ciclos"] > 0 and ciclo % p["ciclos"] == 0:
+                    nueva, mins = "descanso_largo", p["descanso_largo_min"]
+                else:
+                    nueva, mins = "descanso", p["descanso_min"]
+                nuevo_ciclo = ciclo
+            else:
+                nueva, mins = "trabajo", p["trabajo_min"]
+                nuevo_ciclo = ciclo + 1
+            fin = datetime.now() + timedelta(minutes=mins)
+            cur = conn.execute(
+                f"""UPDATE timers SET fase = ?, fin = ?, duracion_min = ?, ciclo = ?
+                    WHERE id = ? AND {guard}""",
+                (nueva, fin.isoformat(timespec="seconds"), mins, nuevo_ciclo, int(id), *extra),
+            )
+            conn.commit()
+            claimed = cur.rowcount == 1
+            reponer = claimed
     finally:
         conn.close()
+    if reponer:
+        _preparar_aviso(int(id))
+    return claimed
+
+
+def _preparar_aviso(id: int) -> None:
+    """Guarda el texto del aviso de la fase actual y pre-sintetiza su voz.
+
+    La sintesis (Piper) corre en un hilo aparte para no bloquear el inicio. Al
+    vencer, el scheduler usa el texto/WAV cacheados -> aviso inmediato.
+    """
+    conn = _conn()
+    try:
+        row = conn.execute("SELECT * FROM timers WHERE id = ?", (int(id),)).fetchone()
+        if row is None:
+            return
+        texto = mensaje_aviso(_row(row))
+        conn.execute(
+            "UPDATE timers SET aviso_texto = ?, aviso_wav = NULL WHERE id = ?",
+            (texto, int(id)),
+        )
+        conn.commit()
+    finally:
+        conn.close()
+    cfg = getattr(settings, "pomodoro", None) or {}
+    if cfg.get("presintetizar", True) and _tts_disponible():
+        threading.Thread(
+            target=_sintetizar_aviso, args=(int(id), texto), daemon=True
+        ).start()
+
+
+def _tts_disponible() -> bool:
+    """True si el modelo de voz Piper ya esta descargado (no fuerza descargas)."""
+    try:
+        from pathlib import Path
+
+        v = settings.voice
+        return (Path(v["voices_dir"]) / f"{v['tts_voice']}.onnx").exists()
+    except Exception:  # noqa: BLE001
+        return False
+
+
+def _sintetizar_aviso(id: int, texto: str) -> None:
+    try:
+        from ..voice import tts
+
+        wav = tts.sintetizar_wav_bytes(texto)
+    except Exception:  # noqa: BLE001 - sin TTS se avisa igual (solo texto)
+        return
+    if not wav:
+        return
+    conn = _conn()
+    try:
+        conn.execute(
+            "UPDATE timers SET aviso_wav = ? WHERE id = ? AND aviso_texto = ?",
+            (sqlite3.Binary(wav), int(id), texto),
+        )
+        conn.commit()
+    finally:
+        conn.close()
+
+
+def aviso(id: int) -> tuple[str | None, bytes | None]:
+    """Texto y WAV pre-sintetizados del aviso (None si no hay)."""
+    conn = _conn()
+    try:
+        row = conn.execute(
+            "SELECT aviso_texto, aviso_wav FROM timers WHERE id = ?", (int(id),)
+        ).fetchone()
+    finally:
+        conn.close()
+    if row is None:
+        return (None, None)
+    wav = row["aviso_wav"]
+    return (row["aviso_texto"], bytes(wav) if wav is not None else None)
 
 
 def mensaje_aviso(t: dict) -> str:

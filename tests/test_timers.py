@@ -11,6 +11,11 @@ from src.tools import timers
 @pytest.fixture(autouse=True)
 def tmp_db(tmp_path, monkeypatch):
     monkeypatch.setattr(config.settings, "database", str(tmp_path / "test.db"))
+    monkeypatch.setattr(
+        config.settings,
+        "pomodoro",
+        {**config.settings.pomodoro, "presintetizar": False},
+    )
     timers._conn().close()
     yield
 
@@ -123,6 +128,12 @@ def test_mensaje_aviso():
     assert "Temporizador" in msg and "horno" in msg
 
 
+def test_aviso_preparado():
+    t = timers.iniciar(minutos=1, etiqueta="horno")
+    texto, _wav = timers.aviso(t["id"])
+    assert texto and "horno" in texto
+
+
 def test_scheduler_avisa_timer(monkeypatch):
     from src import scheduler
     from src.tools import reminders
@@ -131,7 +142,9 @@ def test_scheduler_avisa_timer(monkeypatch):
     monkeypatch.setattr(timers, "vencidos", lambda *a, **k: [dict(t)])
     monkeypatch.setattr(reminders, "vencidos", lambda *a, **k: [])
     avisos: list[str] = []
-    monkeypatch.setattr(scheduler, "_dispatch_aviso", lambda txt: avisos.append(txt))
+    monkeypatch.setattr(
+        scheduler, "_dispatch_aviso", lambda txt, wav=None: avisos.append(txt)
+    )
     scheduler.check_due()
     assert avisos and "Temporizador" in avisos[0]
     assert timers.listar("completados")["total"] == 1
@@ -142,7 +155,7 @@ def test_avisar_avatar_local(monkeypatch):
 
     from src import avatar, scheduler
 
-    monkeypatch.setattr(avatar, "notificar_avatar", lambda t: True)
+    monkeypatch.setattr(avatar, "notificar_avatar", lambda *a, **k: True)
     llamado: list = []
     monkeypatch.setattr(httpx, "post", lambda *a, **k: llamado.append(1))
     scheduler._avisar_avatar("hola")

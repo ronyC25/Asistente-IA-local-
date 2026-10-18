@@ -78,6 +78,11 @@ class Settings:
             "poll_timeout": int(telegram.get("poll_timeout", 25)),
         }
 
+        sched = data.get("scheduler", {}) or {}
+        self.scheduler = {
+            "tick_s": max(1, int(sched.get("tick_s", 1))),
+        }
+
         pomodoro = data.get("pomodoro", {}) or {}
         self.pomodoro = {
             "trabajo_min": int(pomodoro.get("trabajo_min", 25)),
@@ -86,6 +91,7 @@ class Settings:
             "ciclos": int(pomodoro.get("ciclos", 4)),
             "telegram": bool(pomodoro.get("telegram", True)),
             "avatar": bool(pomodoro.get("avatar", True)),
+            "presintetizar": bool(pomodoro.get("presintetizar", True)),
         }
 
         google = data.get("google_calendar", {}) or {}

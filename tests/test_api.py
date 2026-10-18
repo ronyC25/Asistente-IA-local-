@@ -11,6 +11,11 @@ from src.tools import timers
 @pytest.fixture()
 def client(tmp_path, monkeypatch):
     monkeypatch.setattr(config.settings, "database", str(tmp_path / "test.db"))
+    monkeypatch.setattr(
+        config.settings,
+        "pomodoro",
+        {**config.settings.pomodoro, "presintetizar": False},
+    )
     timers._conn().close()
     return TestClient(app)
 
@@ -65,5 +70,15 @@ def test_avatar_say_sin_clientes(client):
     avatar._CLIENTES.clear()
     avatar._LOOP = None
     r = client.post("/avatar/say", json={"texto": "hola"})
+    assert r.status_code == 200
+    assert r.json()["ok"] is False
+
+
+def test_avatar_say_con_wav(client):
+    from src import avatar
+
+    avatar._CLIENTES.clear()
+    avatar._LOOP = None
+    r = client.post("/avatar/say", json={"texto": "hola", "wav_b64": "AAAA"})
     assert r.status_code == 200
     assert r.json()["ok"] is False

@@ -84,3 +84,21 @@ def test_hablar_en_avatares_tolera_fallo_tts(monkeypatch):
         avatar._CLIENTES.clear()
     assert any(m.get("type") == "reply" for m in ws.json)
     assert ws.binary == []
+
+
+def test_hablar_en_avatares_usa_wav_dado(monkeypatch):
+    from src import avatar
+    from src.voice import tts
+
+    def boom(t):
+        raise AssertionError("no debe sintetizar si se pasa el WAV")
+
+    monkeypatch.setattr(tts, "sintetizar_wav_bytes", boom)
+    ws = _FakeWS()
+    avatar._CLIENTES.clear()
+    avatar._CLIENTES.add(ws)
+    try:
+        asyncio.run(avatar._hablar_en_avatares("hola", b"WAV"))
+    finally:
+        avatar._CLIENTES.clear()
+    assert ws.binary == [b"WAV"]

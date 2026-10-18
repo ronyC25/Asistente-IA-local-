@@ -1,26 +1,70 @@
-// Widget de temporizador/pomodoro compartido (avatar, ventana y web).
+// Widget de temporizador/pomodoro compartido (ventana, avatar y web).
 // Uso: <script src="/avatar/timer.js"></script> y JarvisTimer.mount("contenedor").
 (function () {
   if (window.JarvisTimer) return;
 
+  const COLORS = {
+    trabajo: "#4f9cf9",
+    descanso: "#35d0ba",
+    descanso_largo: "#2ea8c9",
+    pausado: "#f5b942",
+    temporizador: "#7c8cf8",
+  };
+
   const CSS = `
-  .jt { font-family: "Segoe UI", system-ui, sans-serif; color: #eaf1ff; }
-  .jt h3 { margin: 0 0 8px; font-size: 14px; color: #35d0ba; }
-  .jt .jt-card { background: rgba(11,16,32,.72); border: 1px solid #2a3a63; border-radius: 12px; padding: 10px 12px; margin-bottom: 10px; }
-  .jt label { font-size: 12px; color: #8b97b3; display: block; margin-bottom: 2px; }
-  .jt input { background: #1b2440; border: 1px solid #2a3a63; color: #eaf1ff; border-radius: 8px; padding: 6px 8px; font-size: 13px; width: 100%; box-sizing: border-box; }
-  .jt .jt-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
-  .jt button { border: none; border-radius: 8px; padding: 7px 12px; cursor: pointer; font-size: 13px; font-weight: 600; color: #041024; background: #4f9cf9; }
-  .jt button.ghost { background: #33405f; color: #eaf1ff; }
+  .jt { font-family: "Segoe UI", system-ui, sans-serif; color: #eaf1ff; --c: #4f9cf9; }
+  .jt * { box-sizing: border-box; }
+  .jt .jt-h { display:flex; align-items:center; gap:8px; margin:0 0 10px; font-size:14px; font-weight:700; letter-spacing:.2px; color:#cfe0ff; }
+  .jt .jt-h .jt-ico { font-size:16px; }
+  .jt .jt-panel {
+    background: linear-gradient(180deg, rgba(23,32,58,.92), rgba(15,21,40,.92));
+    border: 1px solid #26365c; border-radius: 16px; padding: 14px; margin-bottom: 12px;
+    box-shadow: 0 8px 24px rgba(0,0,0,.28);
+  }
+  .jt label { font-size: 11px; color: #8b97b3; display: block; margin-bottom: 3px; text-transform: uppercase; letter-spacing: .4px; }
+  .jt input {
+    background: #131c34; border: 1px solid #2a3a63; color: #eaf1ff; border-radius: 10px;
+    padding: 8px 10px; font-size: 14px; width: 100%; outline: none; transition: border-color .15s;
+  }
+  .jt input:focus { border-color: var(--c); }
+  .jt .jt-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+  .jt button {
+    border: none; border-radius: 10px; padding: 9px 14px; cursor: pointer; font-size: 13px;
+    font-weight: 700; color: #041024; background: var(--c); transition: transform .08s, filter .15s;
+  }
+  .jt button:hover { filter: brightness(1.08); }
+  .jt button:active { transform: translateY(1px); }
+  .jt button.ghost { background: #29375a; color: #dbe6ff; }
+  .jt button.danger { background: #2a3550; color: #ff9c9c; }
   .jt button:disabled { opacity: .5; cursor: default; }
-  .jt .jt-row { display: flex; gap: 6px; align-items: center; margin-top: 8px; }
-  .jt .jt-item { display: flex; align-items: center; gap: 10px; padding: 8px 0; border-bottom: 1px solid #22314f; }
-  .jt .jt-item:last-child { border-bottom: none; }
-  .jt .jt-time { font-size: 22px; font-variant-numeric: tabular-nums; min-width: 74px; }
-  .jt .jt-meta { flex: 1; font-size: 12px; color: #b9c6e6; }
-  .jt .jt-pill { font-size: 11px; padding: 2px 8px; border-radius: 999px; background: #33405f; }
-  .jt .jt-pill.pausado { background: #f5b942; color: #241a00; }
-  .jt .jt-empty { color: #8b97b3; font-size: 13px; }
+  .jt .jt-row { display: flex; gap: 8px; align-items: center; margin-top: 12px; }
+  .jt .jt-row button { flex: 1; }
+
+  .jt .jt-list { display: flex; flex-direction: column; gap: 12px; }
+  .jt .jt-timer {
+    display: flex; align-items: center; gap: 14px; padding: 12px 14px; border-radius: 16px;
+    background: linear-gradient(180deg, rgba(23,32,58,.95), rgba(15,21,40,.95));
+    border: 1px solid #26365c; box-shadow: 0 8px 24px rgba(0,0,0,.3);
+  }
+  .jt .jt-ringwrap { position: relative; width: 84px; height: 84px; flex: 0 0 auto; }
+  .jt .jt-ring { width: 84px; height: 84px; transform: rotate(-90deg); }
+  .jt .jt-ring circle { fill: none; stroke-width: 8; }
+  .jt .jt-ring-bg { stroke: #22304f; }
+  .jt .jt-ring-fg { stroke: var(--c); stroke-linecap: round; transition: stroke-dashoffset .4s linear, stroke .3s; }
+  .jt .jt-ringtime {
+    position: absolute; inset: 0; display: flex; align-items: center; justify-content: center;
+    font-size: 19px; font-weight: 700; font-variant-numeric: tabular-nums; color: #fff;
+  }
+  .jt .jt-info { flex: 1; min-width: 0; }
+  .jt .jt-title { font-size: 14px; font-weight: 700; display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+  .jt .jt-badge {
+    font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: .4px;
+    padding: 2px 8px; border-radius: 999px; color: #041024; background: var(--c);
+  }
+  .jt .jt-sub { font-size: 12px; color: #8b97b3; margin-top: 3px; }
+  .jt .jt-actions { display: flex; gap: 8px; margin-top: 9px; }
+  .jt .jt-empty { text-align: center; color: #8b97b3; font-size: 13px; padding: 18px 8px; }
+  .jt .jt-empty .jt-ico { display: block; font-size: 30px; margin-bottom: 6px; opacity: .8; }
   `;
   if (!document.getElementById("jt-style")) {
     const s = document.createElement("style");
@@ -40,14 +84,16 @@
     return String(m).padStart(2, "0") + ":" + String(s).padStart(2, "0");
   }
 
+  const CIRC = 2 * Math.PI * 46; // r=46 en viewBox 100
+
   function mount(el) {
     const root = typeof el === "string" ? document.getElementById(el) : el;
     if (!root || root.dataset.jtMounted) return null;
     root.dataset.jtMounted = "1";
     root.classList.add("jt");
     root.innerHTML = `
-      <div class="jt-card">
-        <h3>Pomodoro</h3>
+      <div class="jt-panel">
+        <div class="jt-h"><span class="jt-ico">🍅</span> Pomodoro</div>
         <div class="jt-grid">
           <div><label>Trabajo (min)</label><input id="jt-trabajo" type="number" min="1" value="25"></div>
           <div><label>Descanso (min)</label><input id="jt-descanso" type="number" min="1" value="5"></div>
@@ -56,48 +102,59 @@
         </div>
         <div class="jt-row"><button id="jt-ini-pom">Iniciar pomodoro</button></div>
       </div>
-      <div class="jt-card">
-        <h3>Temporizador</h3>
+      <div class="jt-panel">
+        <div class="jt-h"><span class="jt-ico">⏱️</span> Temporizador</div>
         <div class="jt-grid">
           <div><label>Minutos</label><input id="jt-min" type="number" min="1" value="10"></div>
-          <div><label>Nombre (opcional)</label><input id="jt-etq" type="text" placeholder="horno"></div>
+          <div><label>Nombre</label><input id="jt-etq" type="text" placeholder="horno"></div>
         </div>
         <div class="jt-row"><button id="jt-ini-tim">Iniciar temporizador</button></div>
       </div>
-      <div class="jt-card">
-        <h3>Activos</h3>
-        <div id="jt-list"><div class="jt-empty">Sin temporizadores.</div></div>
-      </div>`;
+      <div class="jt-h" style="margin-top:4px"><span class="jt-ico">📋</span> Activos</div>
+      <div id="jt-list" class="jt-list"></div>`;
 
     const q = (id) => root.querySelector("#" + id);
     const num = (id) => parseInt(q(id).value, 10) || null;
     let inited = false;
-
     const state = { temporizadores: [] };
 
+    function colorDe(t) {
+      if (t.estado === "pausado") return COLORS.pausado;
+      if (t.tipo === "pomodoro") return COLORS[t.fase] || COLORS.trabajo;
+      return COLORS.temporizador;
+    }
+
+    function restanteDe(el2) {
+      if (el2.dataset.estado === "pausado") return Number(el2.dataset.restante || 0);
+      const fin = el2.dataset.fin ? Date.parse(el2.dataset.fin) : 0;
+      return fin ? (fin - Date.now()) / 1000 : 0;
+    }
+
     function tick() {
-      const now = Date.now();
-      root.querySelectorAll(".jt-time").forEach((el2) => {
-        const estado = el2.dataset.estado;
-        let seg;
-        if (estado === "pausado") {
-          seg = Number(el2.dataset.restante || 0);
-        } else {
-          const fin = el2.dataset.fin ? Date.parse(el2.dataset.fin) : 0;
-          seg = fin ? (fin - now) / 1000 : 0;
+      root.querySelectorAll(".jt-timer").forEach((card) => {
+        const total = Number(card.dataset.total || 0);
+        const rest = Math.max(0, restanteDe(card));
+        const time = card.querySelector(".jt-ringtime");
+        if (time) time.textContent = fmt(rest);
+        const fg = card.querySelector(".jt-ring-fg");
+        if (fg) {
+          const frac = total > 0 ? Math.min(1, rest / total) : 0;
+          fg.style.strokeDasharray = String(CIRC);
+          fg.style.strokeDashoffset = String(CIRC * (1 - frac));
         }
-        el2.textContent = fmt(seg);
       });
     }
 
     function render() {
       const list = q("jt-list");
       if (!state.temporizadores.length) {
-        list.innerHTML = '<div class="jt-empty">Sin temporizadores.</div>';
+        list.innerHTML =
+          '<div class="jt-empty"><span class="jt-ico">🕐</span>No hay temporizadores activos.</div>';
         return;
       }
       list.innerHTML = state.temporizadores
         .map((t) => {
+          const c = colorDe(t);
           const etq = t.etiqueta
             ? esc(t.etiqueta)
             : t.tipo === "pomodoro"
@@ -105,17 +162,28 @@
             : "Temporizador";
           const fase =
             t.tipo === "pomodoro"
-              ? ` · ${esc((t.fase || "").replace("_", " "))} (ciclo ${t.ciclo})`
-              : "";
+              ? `${esc((t.fase || "").replace("_", " "))} · ciclo ${t.ciclo}`
+              : t.estado === "pausado"
+              ? "pausado"
+              : "en curso";
           const pausado = t.estado === "pausado";
           const play = pausado
-            ? `<button class="ghost" data-act="reanudar" data-id="${t.id}">Reanudar</button>`
-            : `<button class="ghost" data-act="pausar" data-id="${t.id}">Pausar</button>`;
-          return `<div class="jt-item">
-            <div class="jt-time" data-fin="${t.fin}" data-restante="${t.restante_seg || ""}" data-estado="${t.estado}">--:--</div>
-            <div class="jt-meta">${etq}${fase} ${pausado ? '<span class="jt-pill pausado">pausado</span>' : ""}</div>
-            ${play}
-            <button data-act="cancelar" data-id="${t.id}">Detener</button>
+            ? `<button class="ghost" data-act="reanudar" data-id="${t.id}">▶ Reanudar</button>`
+            : `<button class="ghost" data-act="pausar" data-id="${t.id}">⏸ Pausar</button>`;
+          return `<div class="jt-timer" data-fin="${t.fin}" data-restante="${t.restante_seg || ""}" data-estado="${t.estado}" data-total="${(t.duracion_min || 0) * 60}" style="--c:${c}">
+            <div class="jt-ringwrap">
+              <svg class="jt-ring" viewBox="0 0 100 100">
+                <circle class="jt-ring-bg" cx="50" cy="50" r="46"></circle>
+                <circle class="jt-ring-fg" cx="50" cy="50" r="46"></circle>
+              </svg>
+              <div class="jt-ringtime">--:--</div>
+            </div>
+            <div class="jt-info">
+              <div class="jt-title">${etq}<span class="jt-badge">${fase}</span></div>
+              <div class="jt-actions">${play}
+                <button class="danger" data-act="cancelar" data-id="${t.id}">⏹ Detener</button>
+              </div>
+            </div>
           </div>`;
         })
         .join("");

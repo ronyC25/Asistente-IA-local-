@@ -50,18 +50,21 @@ def check_due() -> None:
     from .tools import timers as timers_mod
 
     for t in timers_mod.vencidos():
-        msg = timers_mod.mensaje_aviso(t)
+        # Texto/WAV pre-sintetizados (aviso inmediato).
+        texto, wav = timers_mod.aviso(t["id"])
+        if not texto:
+            texto = timers_mod.mensaje_aviso(t)
         # Reclamo atomico (avanzar/completar solo si sigue activo con ese fin).
         if not timers_mod.avanzar(t["id"], t["fin"]):
             continue
         try:
-            _dispatch_aviso(msg)
+            _dispatch_aviso(texto, wav)
             log.info("temporizador %s avisado (%s)", t["id"], t.get("tipo"))
         except Exception as exc:  # noqa: BLE001
             log.warning("fallo el aviso del temporizador id=%s: %s", t["id"], exc)
 
 
-def _dispatch_aviso(texto: str) -> None:
+def _dispatch_aviso(texto: str, wav: bytes | None = None) -> None:
     """Aviso de temporizador/pomodoro: Telegram y/o avatar (voz), segun config."""
     cfg = getattr(settings, "pomodoro", {}) or {}
     if cfg.get("telegram", True):
@@ -72,36 +75,46 @@ def _dispatch_aviso(texto: str) -> None:
         except Exception as exc:  # noqa: BLE001
             log.warning("no se pudo enviar el aviso por Telegram: %s", exc)
     if cfg.get("avatar", True):
-        _avisar_avatar(texto)
+        _avisar_avatar(texto, wav)
 
 
-def _avisar_avatar(texto: str) -> None:
+def _avisar_avatar(texto: str, wav: bytes | None = None) -> None:
     """Hace hablar al avatar. Si este proceso no lo sirve, se lo pide al web."""
     try:
         from . import avatar
 
-        if avatar.notificar_avatar(texto):
+        if avatar.notificar_avatar(texto, wav):
             return
     except Exception as exc:  # noqa: BLE001
         log.debug("aviso al avatar local fallo: %s", exc)
     # Otro proceso (p. ej. el bot de Telegram) no tiene los WS del avatar:
     # se lo pedimos al servidor web, que es quien los sirve.
     try:
+        import base64
+
         import httpx
 
+        payload: dict = {"texto": texto}
+        if wav:
+            payload["wav_b64"] = base64.b64encode(wav).decode("ascii")
         httpx.post(
             f"http://127.0.0.1:{settings.port}/avatar/say",
-            json={"texto": texto},
+            json=payload,
             timeout=5,
         )
     except Exception as exc:  # noqa: BLE001
         log.debug("no se pudo avisar al avatar por HTTP: %s", exc)
 
 
-def start(interval_seconds: int = 30) -> BackgroundScheduler:
+def start(interval_seconds: int | None = None) -> BackgroundScheduler:
     global _scheduler
     if _scheduler is not None:
         return _scheduler
+    if interval_seconds is None:
+        interval_seconds = int(
+            (getattr(settings, "scheduler", None) or {}).get("tick_s", 1)
+        )
+    interval_seconds = max(1, int(interval_seconds))
     _scheduler = BackgroundScheduler(daemon=True)
     _scheduler.add_job(
         check_due,

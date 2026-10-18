@@ -144,17 +144,23 @@ Las acciones que modifican datos piden confirmacion (`si` / `no`).
 Di "inicia un pomodoro" (25 min de trabajo + 5 de descanso; descanso largo de 15 cada
 4 ciclos), "pon un temporizador de 10 minutos para el horno" (puedes tener varios a
 la vez, con nombre), "pausa el pomodoro" o "cancela el temporizador del horno". Se
-ejecutan al instante (sin confirmacion). Al terminar, el aviso se envia por
-**Telegram** y lo dice el **avatar** (si esta abierto).
+ejecutan al instante (sin confirmacion). Al terminar, el aviso llega **casi al
+momento** (<1 s) por **Telegram** y lo dice el **avatar** (si esta abierto): el
+scheduler revisa cada 1 s y la voz se **pre-sintetiza** al crear el temporizador.
 
 Tambien hay una **interfaz** para verlos en vivo y gestionarlos (iniciar, pausar,
-reanudar, detener y ajustar tiempos de trabajo/descanso):
+reanudar, detener y ajustar tiempos de trabajo/descanso), con **anillo de progreso**
+por temporizador:
 - **Ventana aparte** en el overlay Electron (siempre encima, se puede ocultar): se abre
-  con el boton **⏱** de la barra del avatar (aparece solo si hay temporizadores).
+  con el boton **🕐** de la barra del avatar (siempre visible; cambia de color segun el
+  estado: gris sin temporizadores, azul en trabajo, verde en descanso, ambar si esta
+  pausado).
 - **Panel** en la UI web (boton **⏱ Temporizador** en la cabecera).
 
 Configurable en `config/settings.yaml`:
 ```yaml
+scheduler:
+  tick_s: 1            # cada cuantos segundos se revisan los vencimientos
 pomodoro:
   trabajo_min: 25
   descanso_min: 5
@@ -162,6 +168,7 @@ pomodoro:
   ciclos: 4
   telegram: true
   avatar: true
+  presintetizar: true  # pre-sintetizar la voz del aviso (aviso inmediato)
 ```
 
 ### Email (Gmail)

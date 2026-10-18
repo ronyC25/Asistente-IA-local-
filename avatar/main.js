@@ -406,11 +406,13 @@ function fmtMMSS(seg) {
 
 function updateTimerBtn() {
   if (!timersActivos.length) {
-    timerBtn.style.display = "none";
+    timerBtn.className = "ghost idle";
+    timerBtn.textContent = "🕐";
     return;
   }
   const now = Date.now();
   let min = Infinity;
+  let nearest = null;
   for (const t of timersActivos) {
     const seg =
       t.estado === "pausado"
@@ -418,10 +420,17 @@ function updateTimerBtn() {
         : t.fin
         ? (Date.parse(t.fin) - now) / 1000
         : 0;
-    if (seg < min) min = seg;
+    if (seg < min) {
+      min = seg;
+      nearest = t;
+    }
   }
-  timerBtn.style.display = "inline-block";
-  timerBtn.textContent = "⏱ " + fmtMMSS(min);
+  let cls = "work";
+  if (nearest.estado === "pausado") cls = "paused";
+  else if (nearest.tipo === "pomodoro")
+    cls = nearest.fase === "trabajo" ? "work" : "break";
+  timerBtn.className = "ghost " + cls;
+  timerBtn.textContent = "🕐 " + fmtMMSS(min);
 }
 
 async function pollTimers() {

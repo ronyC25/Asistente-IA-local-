@@ -77,7 +77,7 @@ avatar/              # app Live2D + overlay Electron (Fase 7)
   electron/          #   ventana overlay transparente y click-through
   setup_assets.ps1   #   descarga librerias + modelos Haru/Wanko (no versionados)
 start*.ps1           # lanzadores (venv + modos + start-all + auth)
-tests/               # 311 tests (pytest)
+tests/               # 314 tests (pytest)
 ```
 
 ## Herramientas del agente (27)
@@ -108,17 +108,22 @@ reanudar se resuelve **deterministicamente** en `agent.handle` (via
 `confirm.intencion_temporizador`): **instantaneo, sin confirmacion y sin depender del
 modelo**. Pomodoro clasico 25/5 (descanso largo 15 cada 4 ciclos) configurable por
 temporizador; se permiten **varios** a la vez (con `etiqueta`).
-**Aviso al vencer**: `scheduler.check_due` por **Telegram** y por el **avatar**
-(voz + lip-sync). Como `start-all.ps1` corre **dos schedulers** (web y Telegram), el
-aviso del avatar se reenvia por HTTP (`POST /avatar/say`) si el proceso que dispara no
-tiene los WS del avatar, y el despacho usa **reclamo atomico** (en `timers` y en
-`reminders`) para no duplicar. Si el avatar no esta abierto, solo Telegram.
+**Aviso al vencer (inmediato)**: el scheduler revisa cada **1 s** (`scheduler.tick_s`)
+y el texto/WAV del aviso se **pre-sintetizan** al crear/avanzar el temporizador
+(`pomodoro.presintetizar`), asi el aviso sale en **<1 s** (medido ~0.45 s) por
+**Telegram** y por el **avatar** (voz + lip-sync). Como `start-all.ps1` corre **dos
+schedulers** (web y Telegram), el aviso del avatar se reenvia por HTTP
+(`POST /avatar/say`, con el WAV en `wav_b64`) si el proceso que dispara no tiene los WS,
+y el despacho usa **reclamo atomico** (en `timers` y en `reminders`) para no duplicar.
+Si el avatar no esta abierto, solo Telegram.
 **UI**: ventana Electron aparte (`avatar/timer.html` + `timer.js`, always-on-top y
-ocultable) para ver/gestionar los temporizadores (iniciar, pausar, reanudar, detener,
-tiempos de trabajo/descanso), accesible con el boton **⏱** del avatar (solo si hay
-activos) y tambien en la **web** (`web/index.html`, panel ⏱). Endpoints:
-`GET/POST /temporizadores`, `POST /temporizadores/{id}/{pausar|reanudar|cancelar}`,
-`POST /avatar/say`. Config en `settings.yaml` (`pomodoro`).
+ocultable) con **anillo de progreso + tarjetas** por temporizador (color por fase),
+iniciar/pausar/reanudar/detener y tiempos de trabajo/descanso. Se abre con el boton
+**🕐** del avatar (**siempre visible**; cambia de color segun estado: gris sin timers,
+azul trabajo, verde descanso, ambar pausado) y tambien en la **web** (`web/index.html`,
+panel ⏱). Endpoints: `GET/POST /temporizadores`,
+`POST /temporizadores/{id}/{pausar|reanudar|cancelar}`, `POST /avatar/say`.
+Config en `settings.yaml` (`pomodoro`).
 
 Regla: las de **lectura** se ejecutan al instante; las de **escritura** piden
 confirmacion ("si/no"). Las tools de notas/listas estan **agrupadas** (un grupo de
