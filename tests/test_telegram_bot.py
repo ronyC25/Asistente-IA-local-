@@ -102,6 +102,15 @@ def test_ping(monkeypatch):
     assert enviados and enviados[0][1].startswith("pong")
 
 
+def test_ayuda(monkeypatch):
+    bot, agent, enviados = _bot(monkeypatch)
+    bot.handle_update(
+        {"update_id": 10, "message": {"chat": {"id": 999}, "text": "/ayuda"}}
+    )
+    assert agent.calls == []
+    assert enviados and "Tareas" in enviados[0][1]
+
+
 def test_split_message():
     from src.telegram_bot import _split_message
 

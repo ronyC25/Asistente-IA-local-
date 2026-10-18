@@ -22,6 +22,7 @@ _API = "https://api.telegram.org"
 # Comandos que reinician la conversacion.
 _COMANDOS_RESET = {"/start", "/reset", "/nueva", "/nuevo"}
 _COMANDOS_PING = {"/ping"}
+_COMANDOS_AYUDA = {"/ayuda", "/help", "/funciones", "/capacidades"}
 
 # Limite de caracteres por mensaje de Telegram.
 _TG_LIMIT = 4096
@@ -114,6 +115,13 @@ class TelegramBot:
             return
         if self._es_comando(texto, _COMANDOS_PING):
             self._send(chat_id, f"pong ({settings.model})")
+            return
+        if self._es_comando(texto, _COMANDOS_AYUDA):
+            from .brain.capabilities import texto_capacidades
+
+            self._send(
+                chat_id, texto_capacidades(getattr(self._agent, "registry", None))
+            )
             return
         try:
             session = self._session(chat_id)

@@ -110,6 +110,7 @@ Escribe (o di) cosas como:
 - "Busca donde apunte lo del proyecto"             # buscar_todo: busca en todo a la vez
 - "Que tareas estan etiquetadas como compras?"     # etiquetas (tareas, notas, eventos, recordatorios)
 - "Crea una subtarea de la tarea 3: revisar el borrador"  # subtareas anidadas
+- "Que puedes hacer?"                             # tambien /ayuda (o boton Ayuda en la web)
 - "Mandame la lista de recordatorios por Telegram"
 - "Lee mis ultimos 3 correos"
 - "Sincroniza mi calendario con Google"          # requiere Google Calendar configurado
@@ -133,7 +134,7 @@ Las acciones que modifican datos piden confirmacion (`si` / `no`).
    .\start-telegram.ps1
    ```
    Solo responde al chat de `TELEGRAM_CHAT_ID`. El comando `/ping` responde `pong`
-   para comprobar que esta vivo. Aviso: **un solo** consumidor de `getUpdates` a la vez
+   para comprobar que esta vivo y `/ayuda` muestra todo lo que sabe hacer. Aviso: **un solo** consumidor de `getUpdates` a la vez
    (no usar `src.tools.messaging` mientras el bot corre). Log en `data/telegram_bot.log`.
 
 ### Email (Gmail)

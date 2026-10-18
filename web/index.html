@@ -120,6 +120,7 @@
     <span class="dot"></span>
     <h1>{{ASSISTANT_NAME}}</h1>
     <span class="sub" id="status">local · listo</span>
+    <button id="help" title="Que puede hacer">Ayuda</button>
     <button id="reset" title="Nueva conversacion">Nueva sesion</button>
   </header>
 
@@ -210,6 +211,8 @@
       showConfirm(false);
       addMsg("sys", "Nueva conversacion iniciada.");
     });
+
+    document.getElementById("help").addEventListener("click", () => send("¿Qué puedes hacer?"));
 
     addMsg("sys", "Hola, soy {{ASSISTANT_NAME}}. Escribeme lo que necesites.");
   </script>

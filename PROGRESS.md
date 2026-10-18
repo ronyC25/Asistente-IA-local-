@@ -49,6 +49,7 @@ src/
     schema.py        # definicion JSON de las 25 herramientas
     registry.py      # registro de tools (read/write)
     confirm.py       # clasificacion si/no + deteccion de intencion
+    capabilities.py  # lista de capacidades (respuesta determinista, sin LLM)
   tools/
     tasks.py         # tareas (CRUD)
     reminders.py     # recordatorios (CRUD + recurrencia)
@@ -74,7 +75,7 @@ avatar/              # app Live2D + overlay Electron (Fase 7)
   electron/          #   ventana overlay transparente y click-through
   setup_assets.ps1   #   descarga librerias + modelos Haru/Wanko (no versionados)
 start*.ps1           # lanzadores (venv + modos + start-all + auth)
-tests/               # 253 tests (pytest)
+tests/               # 271 tests (pytest)
 ```
 
 ## Herramientas del agente (25)
@@ -280,6 +281,11 @@ aplicacion** (requiere verificacion en 2 pasos).
   **ejecuta la lectura y pide el resumen** (fallback). **Cortador de bucle**: si el
   modelo re-llama lecturas ya ejecutadas en el turno, se fuerza un resumen sin
   herramientas (evita "demasiados pasos" en sesiones largas).
+- **Capacidades/ayuda**: "¿que puedes hacer?", "tus funciones", "ayuda" o `/ayuda` se
+  responden de forma **determinista** desde `src/brain/capabilities.py` (lista generada
+  a partir del registro de tools, **sin pasar por el LLM**) → completa y sin truncar
+  (evita el tope de `num_predict`). Tampoco disparan el "nudge" de lectura. El comando
+  `/ayuda` esta tambien en Telegram y en la CLI, y hay boton *Ayuda* en la web.
 - **Notas/listas/eventos**: `consultar_notas` filtra por `periodo`/`dias`/`desde`/
   `hasta` y `orden` (recientes/antiguas); `gestionar_listas(accion='crear', items=[...])`
   crea la lista **con sus elementos en una sola llamada** y `consultar_listas('listar')`

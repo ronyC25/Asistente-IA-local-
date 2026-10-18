@@ -436,3 +436,31 @@ def test_ajustar_args_cuanto_falta_respeta_periodo_explicito():
     parsed = [("listar_eventos", {})]
     out = agent._ajustar_args(parsed, "cuanto falta para el evento de esta semana")
     assert dict(out)["listar_eventos"].get("periodo") == "esta_semana"
+
+
+class _NoCallClient:
+    def __init__(self) -> None:
+        self.called = False
+
+    def chat(self, **kwargs):
+        self.called = True
+        return {"message": {"role": "assistant", "content": "no deberia llamarse"}}
+
+
+def test_handle_capacidades_sin_llamar_modelo():
+    agent = Agent(_registry(), model="dummy", system_prompt="sys")
+    agent.client = _NoCallClient()
+    s = agent.new_session()
+    reply, info = agent.handle(s, "¿Qué puedes hacer?")
+    assert info is None
+    assert agent.client.called is False
+    assert "Tareas" in reply
+    assert "Recordatorios" in reply
+
+
+def test_handle_ayuda_slash():
+    agent = Agent(_registry(), model="dummy", system_prompt="sys")
+    agent.client = _NoCallClient()
+    reply, info = agent.handle(agent.new_session(), "/ayuda")
+    assert info is None
+    assert "Calendario" in reply

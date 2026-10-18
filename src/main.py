@@ -66,6 +66,11 @@ def cli() -> None:
                 continue
             if user.lower() in {"salir", "exit", "quit", "adios"}:
                 break
+            if user.lower() in {"/ayuda", "/help", "ayuda", "help", "funciones"}:
+                from .brain.capabilities import texto_capacidades
+
+                print(f"{settings.assistant_name} > {texto_capacidades(agent.registry)}\n")
+                continue
             reply, pending = agent.handle(session, user)
             from .brain.emotions import limpiar_respuesta
 

@@ -530,6 +530,48 @@ def rango_de_texto(text: str, hoy: date | None = None) -> tuple[date, date] | No
     return (hoy, fin)
 
 
+_CAPACIDADES_FRASES = (
+    "que puedes hacer",
+    "que sabes hacer",
+    "que eres capaz",
+    "de que eres capaz",
+    "que funciones",
+    "tus funciones",
+    "que capacidades",
+    "tus capacidades",
+    "para que sirves",
+    "que herramientas",
+    "tus herramientas",
+    "que comandos",
+    "lista de funciones",
+    "muestrame tus funciones",
+    "en que puedes ayudar",
+    "en que me puedes ayudar",
+    "como puedes ayudar",
+)
+_CAPACIDADES_EXACTAS = {
+    "/ayuda",
+    "/help",
+    "/funciones",
+    "/capacidades",
+    "ayuda",
+    "help",
+    "funciones",
+    "capacidades",
+}
+
+
+def pregunta_capacidades(text: str) -> bool:
+    """True si el usuario pregunta que puede hacer el asistente (o pide ayuda)."""
+    raw = (text or "").strip().lower()
+    if raw in _CAPACIDADES_EXACTAS:
+        return True
+    t = _norm(text)
+    if not t:
+        return False
+    return any(frase in t for frase in _CAPACIDADES_FRASES)
+
+
 _HISTORIAL_WORDS = {
     "lista",
     "listado",

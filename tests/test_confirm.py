@@ -15,6 +15,7 @@ from src.brain.confirm import (
     looks_like_query,
     orden_de_texto,
     periodo_de_texto,
+    pregunta_capacidades,
     pregunta_cuanto_falta,
     quiere_historial_recordatorios,
     quiere_proximo,
@@ -247,3 +248,28 @@ def test_etiqueta_de_texto():
     assert etiqueta_de_texto("tareas etiquetadas como compras") == "compras"
     assert etiqueta_de_texto("dame las notas con etiqueta ideas") == "ideas"
     assert etiqueta_de_texto("que tareas tengo") is None
+
+
+@pytest.mark.parametrize(
+    "text",
+    [
+        "¿Qué puedes hacer?",
+        "que funciones tienes",
+        "tus capacidades",
+        "para que sirves",
+        "ayuda",
+        "/ayuda",
+        "/help",
+        "en que me puedes ayudar",
+    ],
+)
+def test_pregunta_capacidades(text):
+    assert pregunta_capacidades(text)
+
+
+@pytest.mark.parametrize(
+    "text",
+    ["ayudame a crear una tarea", "crea una tarea", "que tareas tengo", ""],
+)
+def test_no_es_pregunta_capacidades(text):
+    assert not pregunta_capacidades(text)

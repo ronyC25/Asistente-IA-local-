@@ -6,6 +6,7 @@ from typing import Any
 
 import ollama
 
+from .capabilities import texto_capacidades
 from .confirm import (
     build_proposal,
     buscar_termino_de_texto,
@@ -17,6 +18,7 @@ from .confirm import (
     looks_like_query,
     orden_de_texto,
     periodo_de_texto,
+    pregunta_capacidades,
     pregunta_cuanto_falta,
     quiere_historial_recordatorios,
     quiere_proximo,
@@ -314,6 +316,14 @@ class Agent:
                 )
             return self._run_loop(session)
 
+        # Preguntas sobre capacidades/ayuda: respuesta determinista y completa
+        # (no pasa por el LLM, asi nunca se trunca por el limite de tokens).
+        if pregunta_capacidades(user_text):
+            respuesta = texto_capacidades(self.registry)
+            session.messages.append({"role": "user", "content": user_text})
+            session.messages.append({"role": "assistant", "content": respuesta})
+            return respuesta, None
+
         self._trim(session)
         session.messages.append({"role": "user", "content": user_text})
         return self._run_loop(session, user_text=user_text)
@@ -348,6 +358,8 @@ class Agent:
         saw_write = False
         saw_tool = False
         seen_reads: set = set()
+        # Preguntas de capacidades/ayuda: no insistir con herramientas de lectura.
+        es_meta = bool(user_text) and pregunta_capacidades(user_text)
         for _ in range(self.max_iters):
             response = self._call(session, think=think)
             message = response.get("message", {}) or {}
@@ -356,7 +368,7 @@ class Agent:
             if not tool_calls:
                 content = message.get("content") or ""
                 nudge: str | None = None
-                if user_text and stage < 2:
+                if user_text and stage < 2 and not es_meta:
                     if looks_like_action(user_text) and not saw_write:
                         nudge = self._NUDGE
                     elif (
@@ -381,6 +393,7 @@ class Agent:
                     user_text
                     and stage >= 1
                     and not saw_tool
+                    and not es_meta
                     and looks_like_query(user_text)
                     and not looks_like_action(user_text)
                 ):
