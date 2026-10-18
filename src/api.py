@@ -3,7 +3,7 @@ from __future__ import annotations
 
 from contextlib import asynccontextmanager
 
-from fastapi import FastAPI, WebSocket
+from fastapi import FastAPI, HTTPException, WebSocket
 from fastapi.responses import HTMLResponse, Response
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
@@ -54,6 +54,20 @@ class ChatResponse(BaseModel):
 
 class TtsRequest(BaseModel):
     text: str
+
+
+class SayRequest(BaseModel):
+    texto: str
+
+
+class TimerRequest(BaseModel):
+    tipo: str = "temporizador"
+    minutos: int | None = None
+    etiqueta: str | None = None
+    trabajo_min: int | None = None
+    descanso_min: int | None = None
+    descanso_largo_min: int | None = None
+    ciclos: int | None = None
 
 
 @app.get("/health")
@@ -135,6 +149,57 @@ def avatar_config() -> dict:
         "lipsync_profile": "public/lipsync/profile.json",
         "models": models,
     }
+
+
+@app.post("/avatar/say")
+def avatar_say(req: SayRequest) -> dict:
+    """Hace hablar al avatar (usado por el scheduler de otros procesos)."""
+    from .avatar import notificar_avatar
+
+    return {"ok": notificar_avatar(req.texto)}
+
+
+@app.get("/temporizadores")
+def temporizadores() -> dict:
+    """Temporizadores/pomodoros activos (o pausados) + config de pomodoro."""
+    from .tools import timers
+
+    res = timers.estado()
+    return {"temporizadores": res["temporizadores"], "config": dict(settings.pomodoro)}
+
+
+@app.post("/temporizadores")
+def crear_temporizador(req: TimerRequest) -> dict:
+    from .tools import timers
+
+    try:
+        return timers.iniciar(
+            minutos=req.minutos,
+            etiqueta=req.etiqueta,
+            tipo=req.tipo,
+            trabajo_min=req.trabajo_min,
+            descanso_min=req.descanso_min,
+            descanso_largo_min=req.descanso_largo_min,
+            ciclos=req.ciclos,
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+
+@app.post("/temporizadores/{tid}/{accion}")
+def accion_temporizador(tid: int, accion: str) -> dict:
+    from .tools import timers
+
+    try:
+        if accion == "pausar":
+            return timers.pausar(id=tid)
+        if accion == "reanudar":
+            return timers.reanudar(id=tid)
+        if accion in ("cancelar", "detener"):
+            return timers.cancelar(id=tid)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    raise HTTPException(status_code=400, detail=f"accion no valida: {accion}")
 
 
 def run() -> None:

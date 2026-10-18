@@ -401,6 +401,8 @@ _CANCELAR_PARA_RE = re.compile(
     r"^para\s+(?:el\s+|la\s+|los\s+|las\s+)?"
     r"(?:pomodoro|pomodoros|temporizador|temporizadores|cronometro|timer)\b"
 )
+_PAUSAR_WORDS = {"pausa", "pausar", "pausalo", "pausame"}
+_REANUDAR_WORDS = {"reanuda", "reanudar", "reanudalo", "continua", "continuar", "resume"}
 _TIMER_WORDS = {
     "pomodoro",
     "pomodoros",
@@ -455,6 +457,20 @@ def intencion_temporizador(text: str) -> dict | None:
             idm = re.search(r"\b(\d+)\b", t)
             idv = int(idm.group(1)) if idm else None
         return {"accion": "cancelar", "tipo": tipo, "etiqueta": etq, "id": idv}
+    if palabras & _PAUSAR_WORDS:
+        return {
+            "accion": "pausar",
+            "tipo": tipo,
+            "etiqueta": _etiqueta_timer(t),
+            "id": None,
+        }
+    if palabras & _REANUDAR_WORDS:
+        return {
+            "accion": "reanudar",
+            "tipo": tipo,
+            "etiqueta": _etiqueta_timer(t),
+            "id": None,
+        }
     minutos = minutos_de_texto(text)
     if (palabras & _INICIAR_WORDS) or minutos:
         return {

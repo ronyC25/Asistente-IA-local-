@@ -46,12 +46,23 @@ def notificar_avatar(texto: str) -> bool:
 
 
 async def _hablar_en_avatares(texto: str) -> None:
-    wav = await asyncio.to_thread(tts.sintetizar_wav_bytes, texto)
+    # Primero el texto (asi el avatar lo muestra aunque falle el TTS)...
     for ws in list(_CLIENTES):
         try:
             await ws.send_json({"type": "reply", "text": texto})
-            if wav:
-                await ws.send_bytes(wav)
+        except Exception:  # noqa: BLE001
+            _CLIENTES.discard(ws)
+    # ...y despues la voz.
+    try:
+        wav = await asyncio.to_thread(tts.sintetizar_wav_bytes, texto)
+    except Exception:  # noqa: BLE001
+        log.exception("no se pudo sintetizar la voz del aviso")
+        return
+    if not wav:
+        return
+    for ws in list(_CLIENTES):
+        try:
+            await ws.send_bytes(wav)
         except Exception:  # noqa: BLE001
             _CLIENTES.discard(ws)
 

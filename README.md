@@ -142,10 +142,18 @@ Las acciones que modifican datos piden confirmacion (`si` / `no`).
 
 ### Pomodoro / temporizadores
 Di "inicia un pomodoro" (25 min de trabajo + 5 de descanso; descanso largo de 15 cada
-4 ciclos) o "pon un temporizador de 10 minutos para el horno" (puedes tener varios a
-la vez, con nombre). Se ejecutan al instante (sin confirmacion). Al terminar, el aviso
-se envia por **Telegram** y lo dice el **avatar** (si esta abierto). Configurable en
-`config/settings.yaml`:
+4 ciclos), "pon un temporizador de 10 minutos para el horno" (puedes tener varios a
+la vez, con nombre), "pausa el pomodoro" o "cancela el temporizador del horno". Se
+ejecutan al instante (sin confirmacion). Al terminar, el aviso se envia por
+**Telegram** y lo dice el **avatar** (si esta abierto).
+
+Tambien hay una **interfaz** para verlos en vivo y gestionarlos (iniciar, pausar,
+reanudar, detener y ajustar tiempos de trabajo/descanso):
+- **Ventana aparte** en el overlay Electron (siempre encima, se puede ocultar): se abre
+  con el boton **⏱** de la barra del avatar (aparece solo si hay temporizadores).
+- **Panel** en la UI web (boton **⏱ Temporizador** en la cabecera).
+
+Configurable en `config/settings.yaml`:
 ```yaml
 pomodoro:
   trabajo_min: 25

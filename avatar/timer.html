@@ -1,0 +1,24 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Jarvis - Temporizador</title>
+  <style>
+    html, body { margin: 0; min-height: 100%; background: #0b1020; }
+    body { display: flex; justify-content: center; padding: 14px; }
+    #timer { width: 100%; max-width: 420px; }
+    header { display: flex; align-items: center; gap: 8px; margin-bottom: 10px; }
+    header h1 { font-size: 16px; margin: 0; color: #eaf1ff; font-family: "Segoe UI", system-ui, sans-serif; }
+    header .dot { width: 9px; height: 9px; border-radius: 50%; background: #35d0ba; }
+  </style>
+</head>
+<body>
+  <div id="timer">
+    <header><span class="dot"></span><h1>Jarvis - Temporizador</h1></header>
+    <div id="widget"></div>
+  </div>
+  <script src="/avatar/timer.js"></script>
+  <script>JarvisTimer.mount("widget");</script>
+</body>
+</html>

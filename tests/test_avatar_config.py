@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import asyncio
+
 from fastapi.testclient import TestClient
 
 from src.api import app
@@ -35,3 +37,50 @@ def test_notificar_avatar_sin_clientes():
     avatar._CLIENTES.clear()
     avatar._LOOP = None
     assert avatar.notificar_avatar("hola") is False
+
+
+class _FakeWS:
+    def __init__(self):
+        self.json = []
+        self.binary = []
+
+    async def send_json(self, m):
+        self.json.append(m)
+
+    async def send_bytes(self, b):
+        self.binary.append(b)
+
+
+def test_hablar_en_avatares(monkeypatch):
+    from src import avatar
+    from src.voice import tts
+
+    monkeypatch.setattr(tts, "sintetizar_wav_bytes", lambda t: b"WAV")
+    ws = _FakeWS()
+    avatar._CLIENTES.clear()
+    avatar._CLIENTES.add(ws)
+    try:
+        asyncio.run(avatar._hablar_en_avatares("hola"))
+    finally:
+        avatar._CLIENTES.clear()
+    assert any(m.get("type") == "reply" and m.get("text") == "hola" for m in ws.json)
+    assert ws.binary == [b"WAV"]
+
+
+def test_hablar_en_avatares_tolera_fallo_tts(monkeypatch):
+    from src import avatar
+    from src.voice import tts
+
+    def boom(t):
+        raise RuntimeError("sin tts")
+
+    monkeypatch.setattr(tts, "sintetizar_wav_bytes", boom)
+    ws = _FakeWS()
+    avatar._CLIENTES.clear()
+    avatar._CLIENTES.add(ws)
+    try:
+        asyncio.run(avatar._hablar_en_avatares("hola"))  # no debe lanzar
+    finally:
+        avatar._CLIENTES.clear()
+    assert any(m.get("type") == "reply" for m in ws.json)
+    assert ws.binary == []

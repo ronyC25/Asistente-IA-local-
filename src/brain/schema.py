@@ -218,6 +218,12 @@ def _describe_gestionar_temporizador(a: dict) -> str:
     if accion in ("cancelar", "parar", "detener", "terminar", "stop"):
         ref = a.get("etiqueta") or a.get("id") or "activo"
         return f"Cancelar el temporizador {ref}"
+    if accion in ("pausar", "pausa"):
+        ref = a.get("etiqueta") or a.get("id") or "activo"
+        return f"Pausar el temporizador {ref}"
+    if accion in ("reanudar", "reanuda", "continuar"):
+        ref = a.get("etiqueta") or a.get("id") or "activo"
+        return f"Reanudar el temporizador {ref}"
     return f"Temporizador: {accion}"
 
 
@@ -845,7 +851,10 @@ def build_tools() -> list[dict]:
             "parameters": {
                 "type": "object",
                 "properties": {
-                    "accion": {"type": "string", "enum": ["iniciar", "cancelar"]},
+                    "accion": {
+                        "type": "string",
+                        "enum": ["iniciar", "cancelar", "pausar", "reanudar"],
+                    },
                     "tipo": {
                         "type": "string",
                         "enum": ["temporizador", "pomodoro"],
@@ -861,7 +870,15 @@ def build_tools() -> list[dict]:
                     },
                     "id": {
                         "type": "integer",
-                        "description": "Id del temporizador a cancelar.",
+                        "description": "Id del temporizador (cancelar/pausar/reanudar).",
+                    },
+                    "trabajo_min": {
+                        "type": "integer",
+                        "description": "Minutos de trabajo del pomodoro (opcional).",
+                    },
+                    "descanso_min": {
+                        "type": "integer",
+                        "description": "Minutos de descanso del pomodoro (opcional).",
                     },
                 },
                 "required": ["accion"],

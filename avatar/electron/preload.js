@@ -5,4 +5,5 @@ contextBridge.exposeInMainWorld("jarvisAPI", {
   beginDrag: () => ipcRenderer.send("drag-begin"),
   drag: (dx, dy) => ipcRenderer.send("drag-move", dx, dy),
   endDrag: () => ipcRenderer.send("drag-end"),
+  openTimer: () => ipcRenderer.send("open-timer"),
 });

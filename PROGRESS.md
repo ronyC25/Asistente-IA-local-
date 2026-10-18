@@ -73,10 +73,11 @@ config/settings.yaml # modelo, web, voz
 web/index.html       # UI de chat en el navegador
 avatar/              # app Live2D + overlay Electron (Fase 7)
   index.html main.js #   escena Live2D + WebSocket + microfono + lip-sync
+  timer.html timer.js #  ventana de temporizador/pomodoro (widget compartido)
   electron/          #   ventana overlay transparente y click-through
   setup_assets.ps1   #   descarga librerias + modelos Haru/Wanko (no versionados)
 start*.ps1           # lanzadores (venv + modos + start-all + auth)
-tests/               # 298 tests (pytest)
+tests/               # 311 tests (pytest)
 ```
 
 ## Herramientas del agente (27)
@@ -102,13 +103,22 @@ Subtareas: `crear_tarea(padre_id=...)`; `listar_tareas` devuelve cada tarea con 
 `subtareas` anidadas. Busqueda: `buscar_todo` (dominio `busqueda` + extraccion
 determinista del termino en `agent._ajustar_args`).
 
-Temporizadores/Pomodoro: `timers.py` (tabla `timers`). Iniciar/cancelar se resuelve
-**deterministicamente** en `agent.handle` (via `confirm.intencion_temporizador`):
-**instantaneo, sin confirmacion y sin depender del modelo**. Pomodoro clasico 25/5
-(descanso largo 15 cada 4 ciclos); se permiten **varios** a la vez (con `etiqueta`).
-El aviso al vencer lo dispara `scheduler.check_due` por **Telegram** y por el
-**avatar** (voz + lip-sync, `avatar.notificar_avatar`); si el avatar no esta abierto,
-solo Telegram. Config en `settings.yaml` (`pomodoro`).
+Temporizadores/Pomodoro: `timers.py` (tabla `timers`). Iniciar/cancelar/pausar/
+reanudar se resuelve **deterministicamente** en `agent.handle` (via
+`confirm.intencion_temporizador`): **instantaneo, sin confirmacion y sin depender del
+modelo**. Pomodoro clasico 25/5 (descanso largo 15 cada 4 ciclos) configurable por
+temporizador; se permiten **varios** a la vez (con `etiqueta`).
+**Aviso al vencer**: `scheduler.check_due` por **Telegram** y por el **avatar**
+(voz + lip-sync). Como `start-all.ps1` corre **dos schedulers** (web y Telegram), el
+aviso del avatar se reenvia por HTTP (`POST /avatar/say`) si el proceso que dispara no
+tiene los WS del avatar, y el despacho usa **reclamo atomico** (en `timers` y en
+`reminders`) para no duplicar. Si el avatar no esta abierto, solo Telegram.
+**UI**: ventana Electron aparte (`avatar/timer.html` + `timer.js`, always-on-top y
+ocultable) para ver/gestionar los temporizadores (iniciar, pausar, reanudar, detener,
+tiempos de trabajo/descanso), accesible con el boton **⏱** del avatar (solo si hay
+activos) y tambien en la **web** (`web/index.html`, panel ⏱). Endpoints:
+`GET/POST /temporizadores`, `POST /temporizadores/{id}/{pausar|reanudar|cancelar}`,
+`POST /avatar/say`. Config en `settings.yaml` (`pomodoro`).
 
 Regla: las de **lectura** se ejecutan al instante; las de **escritura** piden
 confirmacion ("si/no"). Las tools de notas/listas estan **agrupadas** (un grupo de
@@ -319,6 +329,13 @@ aplicacion** (requiere verificacion en 2 pasos).
 - **Formato de salida**: las respuestas se limpian de Markdown (`src/brain/textfmt.py`
   via `limpiar_respuesta`) para que no aparezcan asteriscos/negritas/backticks ni en
   los mensajes ni en la voz.
+- **Dos schedulers (web + Telegram)**: `start-all.ps1` arranca el servidor web y el
+  bot de Telegram en **procesos distintos**; **ambos** lanzan el scheduler. Para no
+  duplicar avisos, los recordatorios y temporizadores usan **reclamo atomico**
+  (`UPDATE ... WHERE estado=... ` condicional) y el aviso del avatar se reenvia por
+  `POST /avatar/say` al proceso web (el unico con los WS del avatar). Bug previo: el
+  proceso de Telegram ganaba la carrera, enviaba el Telegram pero **no** podia avisar
+  al avatar.
 - **Secretos**: `.env`, `data/*.db` y `data/voices/` estan en `.gitignore`.
 - **Google Calendar**: requiere `requirements-google.txt`, autorizar una vez
   (`start.ps1 -Mode auth`) y `google_calendar.enabled: true`. Credenciales/token en

@@ -198,6 +198,23 @@ def cancelar_recordatorio(id: int) -> dict:
 
 
 # --- helpers usados por el scheduler ---
+def reclamar(id: int) -> bool:
+    """Reclama un recordatorio de forma ATOMICA (evita doble envio con varios
+    schedulers). Marca 'enviado' solo si seguia 'pendiente'."""
+    conn = _conn()
+    try:
+        cur = conn.execute(
+            """UPDATE reminders
+               SET estado = 'enviado', enviado_en = datetime('now')
+               WHERE id = ? AND estado = 'pendiente'""",
+            (int(id),),
+        )
+        conn.commit()
+        return cur.rowcount == 1
+    finally:
+        conn.close()
+
+
 def vencidos(ahora_iso: str | None = None) -> list[dict]:
     ahora = ahora_iso or datetime.now().isoformat()
     conn = _conn()

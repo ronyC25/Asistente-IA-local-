@@ -147,3 +147,11 @@ def test_etiquetas_y_filtro():
     assert r["etiquetas"] == ["salud"]
     assert reminders.listar_recordatorios(etiqueta="salud")["total"] == 1
     assert reminders.listar_recordatorios(etiqueta="otra")["total"] == 0
+
+
+def test_reclamar_atomico():
+    r = reminders.crear_recordatorio("X", _futuro(60))
+    assert reminders.reclamar(r["id"]) is True
+    # segundo intento: ya no esta pendiente -> no reclama
+    assert reminders.reclamar(r["id"]) is False
+    assert reminders.listar_recordatorios("enviados")["total"] == 1

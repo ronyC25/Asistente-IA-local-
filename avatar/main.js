@@ -393,6 +393,57 @@ function sendText(text) {
   input.value = "";
 }
 
+// ---------------------------------------------------------------- Temporizador
+const timerBtn = $("timerBtn");
+let timersActivos = [];
+
+function fmtMMSS(seg) {
+  seg = Math.max(0, Math.floor(seg));
+  const m = Math.floor(seg / 60);
+  const s = seg % 60;
+  return String(m).padStart(2, "0") + ":" + String(s).padStart(2, "0");
+}
+
+function updateTimerBtn() {
+  if (!timersActivos.length) {
+    timerBtn.style.display = "none";
+    return;
+  }
+  const now = Date.now();
+  let min = Infinity;
+  for (const t of timersActivos) {
+    const seg =
+      t.estado === "pausado"
+        ? Number(t.restante_seg || 0)
+        : t.fin
+        ? (Date.parse(t.fin) - now) / 1000
+        : 0;
+    if (seg < min) min = seg;
+  }
+  timerBtn.style.display = "inline-block";
+  timerBtn.textContent = "⏱ " + fmtMMSS(min);
+}
+
+async function pollTimers() {
+  try {
+    const r = await fetch("/temporizadores", { cache: "no-store" });
+    const data = await r.json();
+    timersActivos = data.temporizadores || [];
+    updateTimerBtn();
+  } catch (e) {
+    /* sin conexion */
+  }
+}
+
+setInterval(pollTimers, 3000);
+setInterval(updateTimerBtn, 1000);
+pollTimers();
+timerBtn.addEventListener("click", () => {
+  const api = window.jarvisAPI;
+  if (api && api.openTimer) api.openTimer();
+  else window.open("/avatar/timer.html", "_blank", "width=420,height=640");
+});
+
 // ---------------------------------------------------------------- UI
 sendBtn.addEventListener("click", () => sendText(input.value));
 input.addEventListener("keydown", (e) => { if (e.key === "Enter") sendText(input.value); });

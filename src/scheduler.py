@@ -29,6 +29,10 @@ def check_due() -> None:
     from .tools import reminders
 
     for r in reminders.vencidos():
+        # Reclamo atomico: solo uno de los procesos con scheduler despacha cada
+        # recordatorio (evita doble envio).
+        if not reminders.reclamar(r["id"]):
+            continue
         try:
             _dispatch(r["canal"], r["texto"])
             nuevo = reminders.siguiente_ocurrencia(r["cuando"], r.get("recurrencia"))
@@ -38,7 +42,6 @@ def check_due() -> None:
                     "recordatorio %s enviado y reprogramado para %s", r["id"], nuevo
                 )
             else:
-                reminders.marcar_enviado(r["id"])
                 log.info("recordatorio enviado id=%s canal=%s", r["id"], r["canal"])
         except Exception as exc:  # noqa: BLE001
             reminders.marcar_error(r["id"])
@@ -47,12 +50,15 @@ def check_due() -> None:
     from .tools import timers as timers_mod
 
     for t in timers_mod.vencidos():
+        msg = timers_mod.mensaje_aviso(t)
+        # Reclamo atomico (avanzar/completar solo si sigue activo con ese fin).
+        if not timers_mod.avanzar(t["id"], t["fin"]):
+            continue
         try:
-            _dispatch_aviso(timers_mod.mensaje_aviso(t))
-            timers_mod.avanzar(t["id"])
+            _dispatch_aviso(msg)
             log.info("temporizador %s avisado (%s)", t["id"], t.get("tipo"))
         except Exception as exc:  # noqa: BLE001
-            log.warning("fallo el temporizador id=%s: %s", t["id"], exc)
+            log.warning("fallo el aviso del temporizador id=%s: %s", t["id"], exc)
 
 
 def _dispatch_aviso(texto: str) -> None:
@@ -66,12 +72,30 @@ def _dispatch_aviso(texto: str) -> None:
         except Exception as exc:  # noqa: BLE001
             log.warning("no se pudo enviar el aviso por Telegram: %s", exc)
     if cfg.get("avatar", True):
-        try:
-            from . import avatar
+        _avisar_avatar(texto)
 
-            avatar.notificar_avatar(texto)
-        except Exception as exc:  # noqa: BLE001
-            log.warning("no se pudo avisar al avatar: %s", exc)
+
+def _avisar_avatar(texto: str) -> None:
+    """Hace hablar al avatar. Si este proceso no lo sirve, se lo pide al web."""
+    try:
+        from . import avatar
+
+        if avatar.notificar_avatar(texto):
+            return
+    except Exception as exc:  # noqa: BLE001
+        log.debug("aviso al avatar local fallo: %s", exc)
+    # Otro proceso (p. ej. el bot de Telegram) no tiene los WS del avatar:
+    # se lo pedimos al servidor web, que es quien los sirve.
+    try:
+        import httpx
+
+        httpx.post(
+            f"http://127.0.0.1:{settings.port}/avatar/say",
+            json={"texto": texto},
+            timeout=5,
+        )
+    except Exception as exc:  # noqa: BLE001
+        log.debug("no se pudo avisar al avatar por HTTP: %s", exc)
 
 
 def start(interval_seconds: int = 30) -> BackgroundScheduler:

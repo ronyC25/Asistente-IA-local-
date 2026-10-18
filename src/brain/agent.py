@@ -345,7 +345,8 @@ class Agent:
         from ..tools import timers
 
         try:
-            if intent["accion"] == "iniciar":
+            accion = intent["accion"]
+            if accion == "iniciar":
                 t = timers.iniciar(
                     minutos=intent.get("minutos"),
                     etiqueta=intent.get("etiqueta"),
@@ -360,6 +361,14 @@ class Agent:
                     )
                 else:
                     msg = f"Temporizador{etq} iniciado: {t['duracion_min']} minutos."
+            elif accion == "pausar":
+                c = timers.pausar(id=intent.get("id"), etiqueta=intent.get("etiqueta"))
+                etq = f" «{c['etiqueta']}»" if c.get("etiqueta") else ""
+                msg = f"Temporizador{etq} pausado."
+            elif accion == "reanudar":
+                c = timers.reanudar(id=intent.get("id"), etiqueta=intent.get("etiqueta"))
+                etq = f" «{c['etiqueta']}»" if c.get("etiqueta") else ""
+                msg = f"Temporizador{etq} reanudado."
             else:
                 c = timers.cancelar(id=intent.get("id"), etiqueta=intent.get("etiqueta"))
                 etq = f" «{c['etiqueta']}»" if c.get("etiqueta") else ""

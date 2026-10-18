@@ -7,12 +7,14 @@ const path = require("path");
 app.commandLine.appendSwitch("disable-http-cache");
 
 const URL = process.env.JARVIS_URL || "http://127.0.0.1:8000/avatar/";
+const TIMER_URL = new URL("timer.html", URL).href;
 const W = 380;
 const H = 500;
 const MARGIN = 30;
 const POS_FILE = path.join(__dirname, "..", "..", "data", "avatar_pos.json");
 
 let win = null;
+let timerWin = null;
 
 function loadPos() {
   try {
@@ -104,6 +106,7 @@ function createWindow() {
   const menu = Menu.buildFromTemplate([
     { label: "Mostrar / Ocultar", click: () => (win.isVisible() ? win.hide() : win.show()) },
     { label: "Recargar", click: () => win.reload() },
+    { label: "Abrir temporizador", click: () => createTimerWindow() },
     { type: "separator" },
     {
       label: "Centrar en pantalla",
@@ -135,6 +138,40 @@ function createWindow() {
   ]);
   win.webContents.on("context-menu", () => menu.popup({ window: win }));
 }
+
+function createTimerWindow() {
+  if (timerWin && !timerWin.isDestroyed()) {
+    if (timerWin.isVisible()) timerWin.focus();
+    else timerWin.show();
+    return;
+  }
+  timerWin = new BrowserWindow({
+    width: 400,
+    height: 600,
+    frame: true,
+    resizable: true,
+    alwaysOnTop: true,
+    skipTaskbar: false,
+    title: "Jarvis - Temporizador",
+    backgroundColor: "#0b1020",
+    webPreferences: {
+      preload: path.join(__dirname, "preload.js"),
+      contextIsolation: true,
+      nodeIntegration: false,
+    },
+  });
+  timerWin.setAlwaysOnTop(true, "screen-saver");
+  timerWin.loadURL(TIMER_URL);
+  // Cerrar la ventana la OCULTA (no la destruye): se reabre desde el avatar.
+  timerWin.on("close", (e) => {
+    if (!app.isQuitting) {
+      e.preventDefault();
+      timerWin.hide();
+    }
+  });
+}
+
+ipcMain.on("open-timer", () => createTimerWindow());
 
 ipcMain.on("set-ignore", (event, ignore) => {
   const w = BrowserWindow.fromWebContents(event.sender);
@@ -178,3 +215,7 @@ app.whenReady().then(async () => {
 });
 
 app.on("window-all-closed", () => app.quit());
+
+app.on("before-quit", () => {
+  app.isQuitting = true;
+});

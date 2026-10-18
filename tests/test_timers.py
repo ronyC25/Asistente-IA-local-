@@ -70,7 +70,8 @@ def test_pomodoro_ciclos():
     t = timers.iniciar(tipo="pomodoro")
     fases = []
     for _ in range(7):
-        r = timers.avanzar(t["id"])
+        assert timers.avanzar(t["id"]) is True
+        r = timers.obtener(t["id"])
         fases.append((r["fase"], r["ciclo"]))
     assert fases == [
         ("descanso", 1),
@@ -85,8 +86,26 @@ def test_pomodoro_ciclos():
 
 def test_temporizador_avanzar_completa():
     t = timers.iniciar(minutos=1)
-    assert timers.avanzar(t["id"]) is None
+    assert timers.avanzar(t["id"]) is True
     assert timers.listar("completados")["total"] == 1
+
+
+def test_avanzar_atomico_solo_una_vez():
+    t = timers.iniciar(minutos=1)
+    assert timers.avanzar(t["id"], t["fin"]) is True
+    # segundo intento con el mismo 'fin': ya no esta activo -> no reclama
+    assert timers.avanzar(t["id"], t["fin"]) is False
+
+
+def test_pausar_y_reanudar():
+    t = timers.iniciar(minutos=10)
+    p = timers.pausar(id=t["id"])
+    assert p["estado"] == "pausado"
+    assert p["restante_seg"] > 0
+    # pausado no aparece en vencidos
+    assert timers.vencidos((datetime.now() + timedelta(hours=1)).isoformat()) == []
+    r = timers.reanudar(id=t["id"])
+    assert r["estado"] == "activo"
 
 
 def test_vencidos():
@@ -116,3 +135,28 @@ def test_scheduler_avisa_timer(monkeypatch):
     scheduler.check_due()
     assert avisos and "Temporizador" in avisos[0]
     assert timers.listar("completados")["total"] == 1
+
+
+def test_avisar_avatar_local(monkeypatch):
+    import httpx
+
+    from src import avatar, scheduler
+
+    monkeypatch.setattr(avatar, "notificar_avatar", lambda t: True)
+    llamado: list = []
+    monkeypatch.setattr(httpx, "post", lambda *a, **k: llamado.append(1))
+    scheduler._avisar_avatar("hola")
+    assert llamado == []
+
+
+def test_avisar_avatar_fallback_http(monkeypatch):
+    import httpx
+
+    from src import avatar, scheduler
+
+    avatar._CLIENTES.clear()
+    avatar._LOOP = None
+    urls: list[str] = []
+    monkeypatch.setattr(httpx, "post", lambda url, **k: urls.append(url))
+    scheduler._avisar_avatar("hola")
+    assert urls and urls[0].endswith("/avatar/say")
