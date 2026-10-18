@@ -241,6 +241,11 @@ class Agent:
                     args["orden"] = "antiguos"
                     args.setdefault("limite", 1)
                 if (proximo or falta) and not fechas:
+                    # "el proximo evento" / "cuanto falta" = sin rango de fechas:
+                    # no dejar un 'periodo' inventado por el modelo (rompia la
+                    # consulta cuando no habia eventos en ese rango).
+                    args.pop("periodo", None)
+                    args.pop("dias", None)
                     args.setdefault("limite", 1)
             if name == "listar_recordatorios" and falta:
                 args.setdefault("limite", 1)

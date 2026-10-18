@@ -420,3 +420,19 @@ def test_ajustar_args_no_inyecta_busqueda_en_accion():
     parsed = [("crear_tarea", {"titulo": "x"})]
     out = agent._ajustar_args(parsed, "crea una tarea y busca las llaves")
     assert [n for n, _ in out] == ["crear_tarea"]
+
+
+def test_ajustar_args_cuanto_falta_quita_periodo_inventado():
+    agent = Agent(_registry(), model="dummy", system_prompt="sys")
+    parsed = [("listar_eventos", {"periodo": "proximos_dias"})]
+    out = agent._ajustar_args(parsed, "cuanto falta para el proximo evento")
+    d = dict(out)["listar_eventos"]
+    assert "periodo" not in d
+    assert d["limite"] == 1
+
+
+def test_ajustar_args_cuanto_falta_respeta_periodo_explicito():
+    agent = Agent(_registry(), model="dummy", system_prompt="sys")
+    parsed = [("listar_eventos", {})]
+    out = agent._ajustar_args(parsed, "cuanto falta para el evento de esta semana")
+    assert dict(out)["listar_eventos"].get("periodo") == "esta_semana"

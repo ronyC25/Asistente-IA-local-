@@ -74,7 +74,7 @@ avatar/              # app Live2D + overlay Electron (Fase 7)
   electron/          #   ventana overlay transparente y click-through
   setup_assets.ps1   #   descarga librerias + modelos Haru/Wanko (no versionados)
 start*.ps1           # lanzadores (venv + modos + start-all + auth)
-tests/               # 251 tests (pytest)
+tests/               # 253 tests (pytest)
 ```
 
 ## Herramientas del agente (25)
