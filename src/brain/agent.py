@@ -14,6 +14,7 @@ from .confirm import (
     dominio_lectura,
     etiqueta_de_texto,
     fecha_de_texto,
+    intencion_temporizador,
     looks_like_action,
     looks_like_query,
     orden_de_texto,
@@ -61,6 +62,7 @@ _DOMINIO_TOOL = {
     "eventos": "listar_eventos",
     "email": "leer_email",
     "busqueda": "buscar_todo",
+    "temporizadores": "consultar_temporizador",
 }
 
 # Herramientas de listado que aceptan el filtro 'etiqueta'.
@@ -123,6 +125,8 @@ def _args_dominio(dominio: str, user_text: str | None) -> dict:
         args = {"accion": "listar"}
     elif dominio == "busqueda":
         args = {"texto": buscar_termino_de_texto(txt) or txt}
+    elif dominio == "temporizadores":
+        args = {}
     else:
         args = {}
 
@@ -324,9 +328,47 @@ class Agent:
             session.messages.append({"role": "assistant", "content": respuesta})
             return respuesta, None
 
+        # Temporizadores/Pomodoro: iniciar/cancelar de forma determinista e
+        # instantanea (sin confirmacion ni depender del modelo).
+        intent = intencion_temporizador(user_text)
+        if intent:
+            return self._manejar_temporizador(intent, session, user_text), None
+
         self._trim(session)
         session.messages.append({"role": "user", "content": user_text})
         return self._run_loop(session, user_text=user_text)
+
+    def _manejar_temporizador(
+        self, intent: dict, session: Session, user_text: str
+    ) -> str:
+        from ..config import settings
+        from ..tools import timers
+
+        try:
+            if intent["accion"] == "iniciar":
+                t = timers.iniciar(
+                    minutos=intent.get("minutos"),
+                    etiqueta=intent.get("etiqueta"),
+                    tipo=intent.get("tipo") or "temporizador",
+                )
+                etq = f" «{t['etiqueta']}»" if t.get("etiqueta") else ""
+                if t.get("tipo") == "pomodoro":
+                    cfg = settings.pomodoro
+                    msg = (
+                        f"Pomodoro{etq} iniciado: {t['duracion_min']} min de trabajo "
+                        f"y {cfg['descanso_min']} de descanso."
+                    )
+                else:
+                    msg = f"Temporizador{etq} iniciado: {t['duracion_min']} minutos."
+            else:
+                c = timers.cancelar(id=intent.get("id"), etiqueta=intent.get("etiqueta"))
+                etq = f" «{c['etiqueta']}»" if c.get("etiqueta") else ""
+                msg = f"Temporizador{etq} cancelado."
+        except Exception as exc:  # noqa: BLE001
+            msg = f"No pude gestionar el temporizador: {exc}"
+        session.messages.append({"role": "user", "content": user_text})
+        session.messages.append({"role": "assistant", "content": msg})
+        return msg
 
     _NUDGE = (
         "IMPORTANTE: SI tienes la capacidad de enviar por Telegram/email y de crear, "

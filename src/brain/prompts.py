@@ -100,5 +100,9 @@ crear_tarea(padre_id=<id de X>); listar_tareas ya devuelve las subtareas anidada
 21. Si el usuario pregunta que puedes hacer, tus funciones o pide ayuda, responde con \
 la lista completa de capacidades (se te entrega ya redactada): no la inventes ni la \
 recortes.
+22. Para temporizadores y pomodoro usa gestionar_temporizador (accion 'iniciar' con \
+tipo y minutos, o 'cancelar') y consultar_temporizador para el estado o cuanto queda. \
+El pomodoro es de 25 min de trabajo y 5 de descanso (descanso largo cada 4). El aviso \
+al terminar se envia solo por Telegram y por el avatar; no lo generes tu.
 
 Se breve: responde en una o dos frases salvo que se pida detalle."""

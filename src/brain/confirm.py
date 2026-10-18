@@ -124,6 +124,12 @@ _QUERY_WORDS = {
     "consultar",
     "cuantas",
     "cuantos",
+    "cuanto",
+    "cuanta",
+    "queda",
+    "quedan",
+    "falta",
+    "faltan",
     "cuales",
     "cual",
     "tengo",
@@ -185,6 +191,17 @@ _DOMINIO_KEYWORDS = (
     (
         "listas",
         ("checklist", "checklists", "lista de la compra", "lista de compras"),
+    ),
+    (
+        "temporizadores",
+        (
+            "pomodoro",
+            "pomodoros",
+            "temporizador",
+            "temporizadores",
+            "cronometro",
+            "cronometros",
+        ),
     ),
     (
         "eventos",
@@ -311,6 +328,143 @@ def etiqueta_de_texto(text: str) -> str | None:
         return None
     cand = re.split(r"\b(?:de|del|en|para|que|con|y|o|por)\b", m.group(1))[0].strip()
     return cand or None
+
+
+# --- temporizadores / pomodoro ---
+_NUM_WORDS = (
+    r"(?:\d+|un|una|uno|dos|tres|cuatro|cinco|seis|siete|ocho|nueve|diez|once|doce|quince)"
+)
+
+
+def minutos_de_texto(text: str) -> int | None:
+    """Extrae una duracion en minutos ('25 minutos', '1 hora', 'media hora', '1h30')."""
+    t = _norm_keep(text)
+    if not t:
+        return None
+    if "hora y media" in t or "hora y medio" in t:
+        return 90
+    if "media hora" in t:
+        return 30
+    m = re.search(rf"({_NUM_WORDS})\s*horas?\s*y\s*media", t)
+    if m:
+        n = _num(m.group(1))
+        if n:
+            return n * 60 + 30
+    m = re.search(rf"({_NUM_WORDS})\s*horas?", t)
+    if m:
+        n = _num(m.group(1))
+        if n:
+            return n * 60
+    m = re.search(r"(\d+)\s*h(?:\s*(\d{1,2}))?", t)
+    if m:
+        h = int(m.group(1))
+        mm = int(m.group(2)) if m.group(2) else 0
+        if h or mm:
+            return h * 60 + mm
+    m = re.search(rf"({_NUM_WORDS})\s*min", t)
+    if m:
+        return _num(m.group(1))
+    return None
+
+
+_INICIAR_WORDS = {
+    "inicia",
+    "iniciar",
+    "iniciame",
+    "empieza",
+    "empezar",
+    "arranca",
+    "arrancar",
+    "lanza",
+    "lanzar",
+    "comienza",
+    "comenzar",
+    "activa",
+    "activar",
+    "pon",
+    "poner",
+    "ponme",
+}
+_CANCELAR_WORDS = {
+    "cancela",
+    "cancelar",
+    "cancelame",
+    "deten",
+    "detener",
+    "parar",
+    "termina",
+    "terminar",
+    "elimina",
+    "borra",
+}
+_CANCELAR_PARA_RE = re.compile(
+    r"^para\s+(?:el\s+|la\s+|los\s+|las\s+)?"
+    r"(?:pomodoro|pomodoros|temporizador|temporizadores|cronometro|timer)\b"
+)
+_TIMER_WORDS = {
+    "pomodoro",
+    "pomodoros",
+    "temporizador",
+    "temporizadores",
+    "cronometro",
+    "cronometros",
+    "timer",
+}
+
+
+def _etiqueta_timer(t: str) -> str | None:
+    """Extrae la etiqueta de un temporizador ('para el horno', 'del horno')."""
+    for pat in (
+        r"\bpara\s+(?:el\s+|la\s+|los\s+|las\s+)?([a-z0-9\- ]{2,30})",
+        r"\b(?:del|de)\s+(?:el\s+|la\s+)?([a-z0-9\- ]{2,30})",
+        r"\b(?:con\s+etiqueta|etiqueta)\s+(?:de\s+|el\s+|la\s+)?([a-z0-9\- ]{2,30})",
+    ):
+        m = re.search(pat, t)
+        if not m:
+            continue
+        cand = re.split(
+            r"\b(?:de|del|en|que|con|y|o|por|las?|los?|el)\b", m.group(1)
+        )[0].strip()
+        cand = re.sub(r"\b\d+\b.*$", "", cand).strip()
+        if cand and cand not in _TIMER_WORDS:
+            return cand
+    return None
+
+
+def intencion_temporizador(text: str) -> dict | None:
+    """Detecta iniciar/cancelar un temporizador o pomodoro.
+
+    Devuelve ``{"accion", "tipo", "minutos", "etiqueta", "id"}`` o None. Sirve
+    para gestionar la accion de forma determinista (sin depender del modelo).
+    """
+    t = _norm(text)
+    if not t:
+        return None
+    palabras = set(t.split())
+    if not (palabras & _TIMER_WORDS):
+        return None
+    tipo = (
+        "pomodoro"
+        if ("pomodoro" in palabras or "pomodoros" in palabras)
+        else "temporizador"
+    )
+    if palabras & _CANCELAR_WORDS or _CANCELAR_PARA_RE.match(t):
+        etq = _etiqueta_timer(t)
+        idv = None
+        if not etq:
+            idm = re.search(r"\b(\d+)\b", t)
+            idv = int(idm.group(1)) if idm else None
+        return {"accion": "cancelar", "tipo": tipo, "etiqueta": etq, "id": idv}
+    minutos = minutos_de_texto(text)
+    if (palabras & _INICIAR_WORDS) or minutos:
+        return {
+            "accion": "iniciar",
+            "tipo": tipo,
+            "minutos": minutos,
+            "etiqueta": _etiqueta_timer(t),
+            "id": None,
+        }
+    return None
 
 
 def orden_de_texto(text: str) -> str | None:

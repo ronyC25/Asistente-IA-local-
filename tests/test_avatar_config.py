@@ -27,3 +27,11 @@ def test_avatar_settings_models():
     assert "Wanko" in models
     assert all(p.endswith(".model3.json") for p in models.values())
     assert settings.avatar["height"] > 0
+
+
+def test_notificar_avatar_sin_clientes():
+    from src import avatar
+
+    avatar._CLIENTES.clear()
+    avatar._LOOP = None
+    assert avatar.notificar_avatar("hola") is False

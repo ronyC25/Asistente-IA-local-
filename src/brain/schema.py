@@ -13,6 +13,7 @@ from ..tools import (
     reminders,
     search,
     tasks,
+    timers,
 )
 from .registry import READ, WRITE
 
@@ -204,6 +205,20 @@ def _describe_exportar_ics(a: dict) -> str:
 
 def _describe_sincronizar_calendario(a: dict) -> str:
     return "Sincronizar el calendario local con Google Calendar"
+
+
+def _describe_gestionar_temporizador(a: dict) -> str:
+    accion = str(a.get("accion", "?")).lower()
+    if accion in ("iniciar", "empezar", "crear", "nueva", "nuevo", "start", "comenzar"):
+        if (a.get("tipo") or "").lower() == "pomodoro":
+            suf = f" «{a['etiqueta']}»" if a.get("etiqueta") else ""
+            return f"Iniciar un Pomodoro{suf} (25 min de trabajo)"
+        suf = f" «{a['etiqueta']}»" if a.get("etiqueta") else ""
+        return f"Iniciar un temporizador de {a.get('minutos', '?')} min{suf}"
+    if accion in ("cancelar", "parar", "detener", "terminar", "stop"):
+        ref = a.get("etiqueta") or a.get("id") or "activo"
+        return f"Cancelar el temporizador {ref}"
+    return f"Temporizador: {accion}"
 
 
 def build_tools() -> list[dict]:
@@ -807,5 +822,52 @@ def build_tools() -> list[dict]:
             "parameters": {"type": "object", "properties": {}},
             "func": search.listar_etiquetas,
             "kind": READ,
+        },
+        {
+            "name": "consultar_temporizador",
+            "description": (
+                "Muestra los temporizadores y pomodoros ACTIVOS y cuanto falta para "
+                "que suenen. Usala para 'cuanto queda del pomodoro' o 'que "
+                "temporizadores tengo'."
+            ),
+            "parameters": {"type": "object", "properties": {}},
+            "func": timers.estado,
+            "kind": READ,
+        },
+        {
+            "name": "gestionar_temporizador",
+            "description": (
+                "Inicia o cancela temporizadores y pomodoros. accion 'iniciar' (tipo "
+                "pomodoro|temporizador, 'minutos', 'etiqueta') o 'cancelar' (id o "
+                "etiqueta). Se ejecuta AL INSTANTE (sin confirmacion). El pomodoro es "
+                "de 25 min de trabajo y 5 de descanso (descanso largo cada 4)."
+            ),
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "accion": {"type": "string", "enum": ["iniciar", "cancelar"]},
+                    "tipo": {
+                        "type": "string",
+                        "enum": ["temporizador", "pomodoro"],
+                        "description": "Por defecto temporizador.",
+                    },
+                    "minutos": {
+                        "type": "integer",
+                        "description": "Duracion en minutos (temporizador).",
+                    },
+                    "etiqueta": {
+                        "type": "string",
+                        "description": "Nombre del temporizador (p. ej. 'horno').",
+                    },
+                    "id": {
+                        "type": "integer",
+                        "description": "Id del temporizador a cancelar.",
+                    },
+                },
+                "required": ["accion"],
+            },
+            "func": timers.gestionar,
+            "kind": READ,
+            "describe": _describe_gestionar_temporizador,
         },
     ]

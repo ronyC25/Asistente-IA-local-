@@ -25,6 +25,36 @@ _SALIR = {"salir", "adios", "adiós", "apagate", "apágate", "hasta luego", "cha
 _wake: WakeWord | None = None
 _agent = None
 
+# Clientes de avatar conectados (para avisarles desde el scheduler: voz + lip-sync).
+_CLIENTES: set = set()
+_LOOP = None
+
+
+def notificar_avatar(texto: str) -> bool:
+    """Hace hablar a los avatares conectados. True si habia alguno.
+
+    Pensado para llamarse desde otro hilo (p. ej. el scheduler).
+    """
+    if not texto or not _CLIENTES or _LOOP is None or _LOOP.is_closed():
+        return False
+    try:
+        asyncio.run_coroutine_threadsafe(_hablar_en_avatares(texto), _LOOP)
+        return True
+    except Exception:  # noqa: BLE001
+        log.exception("no se pudo avisar al avatar")
+        return False
+
+
+async def _hablar_en_avatares(texto: str) -> None:
+    wav = await asyncio.to_thread(tts.sintetizar_wav_bytes, texto)
+    for ws in list(_CLIENTES):
+        try:
+            await ws.send_json({"type": "reply", "text": texto})
+            if wav:
+                await ws.send_bytes(wav)
+        except Exception:  # noqa: BLE001
+            _CLIENTES.discard(ws)
+
 
 def _get_wake() -> WakeWord:
     global _wake
@@ -45,10 +75,14 @@ def _rms(frame: np.ndarray) -> float:
 
 
 async def handle_ws(ws: WebSocket) -> None:
+    global _LOOP
     await ws.accept()
+    _LOOP = asyncio.get_running_loop()
+    _CLIENTES.add(ws)
     try:
         wake = await asyncio.to_thread(_get_wake)
     except Exception as exc:  # noqa: BLE001
+        _CLIENTES.discard(ws)
         await ws.send_json({"type": "error", "message": f"wake word: {exc}"})
         await ws.close()
         return
@@ -164,3 +198,5 @@ async def handle_ws(ws: WebSocket) -> None:
         log.info("cliente de avatar desconectado")
     except Exception:  # noqa: BLE001
         log.exception("error en el websocket del avatar")
+    finally:
+        _CLIENTES.discard(ws)

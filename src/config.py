@@ -78,6 +78,16 @@ class Settings:
             "poll_timeout": int(telegram.get("poll_timeout", 25)),
         }
 
+        pomodoro = data.get("pomodoro", {}) or {}
+        self.pomodoro = {
+            "trabajo_min": int(pomodoro.get("trabajo_min", 25)),
+            "descanso_min": int(pomodoro.get("descanso_min", 5)),
+            "descanso_largo_min": int(pomodoro.get("descanso_largo_min", 15)),
+            "ciclos": int(pomodoro.get("ciclos", 4)),
+            "telegram": bool(pomodoro.get("telegram", True)),
+            "avatar": bool(pomodoro.get("avatar", True)),
+        }
+
         google = data.get("google_calendar", {}) or {}
         cred = google.get("credentials_file", "data/google_credentials.json")
         token = google.get("token_file", "data/google_token.json")

@@ -464,3 +464,52 @@ def test_handle_ayuda_slash():
     reply, info = agent.handle(agent.new_session(), "/ayuda")
     assert info is None
     assert "Calendario" in reply
+
+
+def test_handle_inicia_temporizador(monkeypatch):
+    from src.tools import timers
+
+    llamadas: list[dict] = []
+
+    def _fake_iniciar(**k):
+        llamadas.append(k)
+        return {
+            "tipo": k.get("tipo", "temporizador"),
+            "etiqueta": k.get("etiqueta"),
+            "duracion_min": k.get("minutos") or 25,
+        }
+
+    monkeypatch.setattr(timers, "iniciar", _fake_iniciar)
+    agent = Agent(_registry(), model="dummy", system_prompt="sys")
+    agent.client = _NoCallClient()
+    reply, info = agent.handle(
+        agent.new_session(), "pon un temporizador de 10 minutos para el horno"
+    )
+    assert info is None
+    assert agent.client.called is False
+    assert llamadas == [{"minutos": 10, "etiqueta": "horno", "tipo": "temporizador"}]
+    assert "horno" in reply
+
+
+def test_handle_inicia_pomodoro(monkeypatch):
+    from src.tools import timers
+
+    capturado: dict = {}
+
+    def _fake_iniciar(**k):
+        capturado.update(k)
+        return {"tipo": "pomodoro", "etiqueta": None, "duracion_min": 25}
+
+    monkeypatch.setattr(timers, "iniciar", _fake_iniciar)
+    agent = Agent(_registry(), model="dummy", system_prompt="sys")
+    agent.client = _NoCallClient()
+    reply, info = agent.handle(agent.new_session(), "inicia un pomodoro")
+    assert info is None
+    assert capturado.get("tipo") == "pomodoro"
+    assert "Pomodoro" in reply
+
+
+def test_ajustar_args_estado_temporizador():
+    agent = Agent(_registry(), model="dummy", system_prompt="sys")
+    out = agent._ajustar_args([], "cuanto queda del pomodoro")
+    assert "consultar_temporizador" in [n for n, _ in out]

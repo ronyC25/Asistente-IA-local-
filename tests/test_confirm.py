@@ -11,8 +11,10 @@ from src.brain.confirm import (
     es_busqueda,
     etiqueta_de_texto,
     fecha_de_texto,
+    intencion_temporizador,
     looks_like_action,
     looks_like_query,
+    minutos_de_texto,
     orden_de_texto,
     periodo_de_texto,
     pregunta_capacidades,
@@ -273,3 +275,61 @@ def test_pregunta_capacidades(text):
 )
 def test_no_es_pregunta_capacidades(text):
     assert not pregunta_capacidades(text)
+
+
+@pytest.mark.parametrize(
+    "text,esperado",
+    [
+        ("25 minutos", 25),
+        ("10 min", 10),
+        ("1 hora", 60),
+        ("una hora", 60),
+        ("media hora", 30),
+        ("1 hora y media", 90),
+        ("1h30", 90),
+        ("2h", 120),
+        ("", None),
+        ("busca la tarea", None),
+    ],
+)
+def test_minutos_de_texto(text, esperado):
+    assert minutos_de_texto(text) == esperado
+
+
+def test_intencion_temporizador_iniciar():
+    assert intencion_temporizador("inicia un pomodoro") == {
+        "accion": "iniciar",
+        "tipo": "pomodoro",
+        "minutos": None,
+        "etiqueta": None,
+        "id": None,
+    }
+    assert intencion_temporizador("pon un temporizador de 10 minutos para el horno") == {
+        "accion": "iniciar",
+        "tipo": "temporizador",
+        "minutos": 10,
+        "etiqueta": "horno",
+        "id": None,
+    }
+
+
+def test_intencion_temporizador_cancelar():
+    assert intencion_temporizador("cancela el pomodoro") == {
+        "accion": "cancelar",
+        "tipo": "pomodoro",
+        "etiqueta": None,
+        "id": None,
+    }
+    assert intencion_temporizador("para el temporizador") == {
+        "accion": "cancelar",
+        "tipo": "temporizador",
+        "etiqueta": None,
+        "id": None,
+    }
+    assert (
+        intencion_temporizador("cancela el temporizador del horno")["etiqueta"] == "horno"
+    )
+
+
+def test_intencion_temporizador_none():
+    assert intencion_temporizador("que tareas tengo") is None

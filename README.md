@@ -111,6 +111,9 @@ Escribe (o di) cosas como:
 - "Que tareas estan etiquetadas como compras?"     # etiquetas (tareas, notas, eventos, recordatorios)
 - "Crea una subtarea de la tarea 3: revisar el borrador"  # subtareas anidadas
 - "Que puedes hacer?"                             # tambien /ayuda (o boton Ayuda en la web)
+- "Inicia un pomodoro"                             # 25 min de trabajo + 5 de descanso
+- "Pon un temporizador de 10 minutos para el horno"  # varios a la vez, con etiqueta
+- "Cuanto queda del pomodoro?"                     # y "cancela el temporizador del horno"
 - "Mandame la lista de recordatorios por Telegram"
 - "Lee mis ultimos 3 correos"
 - "Sincroniza mi calendario con Google"          # requiere Google Calendar configurado
@@ -136,6 +139,22 @@ Las acciones que modifican datos piden confirmacion (`si` / `no`).
    Solo responde al chat de `TELEGRAM_CHAT_ID`. El comando `/ping` responde `pong`
    para comprobar que esta vivo y `/ayuda` muestra todo lo que sabe hacer. Aviso: **un solo** consumidor de `getUpdates` a la vez
    (no usar `src.tools.messaging` mientras el bot corre). Log en `data/telegram_bot.log`.
+
+### Pomodoro / temporizadores
+Di "inicia un pomodoro" (25 min de trabajo + 5 de descanso; descanso largo de 15 cada
+4 ciclos) o "pon un temporizador de 10 minutos para el horno" (puedes tener varios a
+la vez, con nombre). Se ejecutan al instante (sin confirmacion). Al terminar, el aviso
+se envia por **Telegram** y lo dice el **avatar** (si esta abierto). Configurable en
+`config/settings.yaml`:
+```yaml
+pomodoro:
+  trabajo_min: 25
+  descanso_min: 5
+  descanso_largo_min: 15
+  ciclos: 4
+  telegram: true
+  avatar: true
+```
 
 ### Email (Gmail)
 Rellena en `.env`: `EMAIL_ADDRESS`, `EMAIL_PASSWORD` (contrasena de aplicacion),

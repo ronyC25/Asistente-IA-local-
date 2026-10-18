@@ -43,6 +43,8 @@ def test_tools_esperadas_presentes():
         "gestionar_listas",
         "buscar_todo",
         "listar_etiquetas",
+        "consultar_temporizador",
+        "gestionar_temporizador",
     }
     assert esperadas <= names
 

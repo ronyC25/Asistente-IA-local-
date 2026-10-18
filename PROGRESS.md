@@ -46,7 +46,7 @@ src/
   brain/
     agent.py         # loop de tool-calling + confirmacion + guardarrailes
     prompts.py       # system prompt
-    schema.py        # definicion JSON de las 25 herramientas
+    schema.py        # definicion JSON de las 27 herramientas
     registry.py      # registro de tools (read/write)
     confirm.py       # clasificacion si/no + deteccion de intencion
     capabilities.py  # lista de capacidades (respuesta determinista, sin LLM)
@@ -57,6 +57,7 @@ src/
     lists.py         # listas/checklists (consultar/gestionar)
     search.py        # busqueda global (buscar_todo) + listar_etiquetas
     _tags.py         # utilidades de etiquetas (normalizacion/filtro)
+    timers.py        # temporizadores y pomodoro (aviso via scheduler)
     notify.py        # notificaciones Windows (toast)
     messaging.py     # Telegram
     email_tool.py    # email IMAP/SMTP
@@ -75,10 +76,10 @@ avatar/              # app Live2D + overlay Electron (Fase 7)
   electron/          #   ventana overlay transparente y click-through
   setup_assets.ps1   #   descarga librerias + modelos Haru/Wanko (no versionados)
 start*.ps1           # lanzadores (venv + modos + start-all + auth)
-tests/               # 271 tests (pytest)
+tests/               # 298 tests (pytest)
 ```
 
-## Herramientas del agente (25)
+## Herramientas del agente (27)
 
 - **Tareas**: `crear_tarea` (con `etiquetas` y `padre_id` para subtareas), `listar_tareas`
   (anida `subtareas`), `completar_tarea` (completa tambien las hijas), `editar_tarea`,
@@ -89,6 +90,8 @@ tests/               # 271 tests (pytest)
 - **Listas/checklists**: `consultar_listas` (read), `gestionar_listas` (write)
 - **Busqueda/organizacion**: `buscar_todo` (busca texto en todos los datos),
   `listar_etiquetas`
+- **Temporizadores/Pomodoro**: `consultar_temporizador` (read), `gestionar_temporizador`
+  (iniciar/cancelar, **instantaneo**)
 - **Notif/Mensajeria/Email**: `enviar_notificacion_windows`, `enviar_telegram`, `leer_email`, `enviar_email`
 - **Calendario**: `crear_evento`, `listar_eventos`, `editar_evento`, `cancelar_evento`, `exportar_ics`, `sincronizar_calendario`
 - **Sistema**: `fecha_hora_actual`
@@ -98,6 +101,14 @@ Etiquetas/categorias: tareas, notas, eventos y recordatorios aceptan `etiquetas`
 Subtareas: `crear_tarea(padre_id=...)`; `listar_tareas` devuelve cada tarea con sus
 `subtareas` anidadas. Busqueda: `buscar_todo` (dominio `busqueda` + extraccion
 determinista del termino en `agent._ajustar_args`).
+
+Temporizadores/Pomodoro: `timers.py` (tabla `timers`). Iniciar/cancelar se resuelve
+**deterministicamente** en `agent.handle` (via `confirm.intencion_temporizador`):
+**instantaneo, sin confirmacion y sin depender del modelo**. Pomodoro clasico 25/5
+(descanso largo 15 cada 4 ciclos); se permiten **varios** a la vez (con `etiqueta`).
+El aviso al vencer lo dispara `scheduler.check_due` por **Telegram** y por el
+**avatar** (voz + lip-sync, `avatar.notificar_avatar`); si el avatar no esta abierto,
+solo Telegram. Config en `settings.yaml` (`pomodoro`).
 
 Regla: las de **lectura** se ejecutan al instante; las de **escritura** piden
 confirmacion ("si/no"). Las tools de notas/listas estan **agrupadas** (un grupo de

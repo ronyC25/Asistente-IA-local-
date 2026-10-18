@@ -5,6 +5,8 @@ import logging
 
 from apscheduler.schedulers.background import BackgroundScheduler
 
+from .config import settings
+
 log = logging.getLogger("asistente.scheduler")
 
 _scheduler: BackgroundScheduler | None = None
@@ -23,7 +25,7 @@ def _dispatch(canal: str, texto: str) -> dict:
 
 
 def check_due() -> None:
-    """Envia los recordatorios cuya hora ya paso."""
+    """Envia los recordatorios y temporizadores cuya hora ya paso."""
     from .tools import reminders
 
     for r in reminders.vencidos():
@@ -41,6 +43,35 @@ def check_due() -> None:
         except Exception as exc:  # noqa: BLE001
             reminders.marcar_error(r["id"])
             log.warning("fallo el recordatorio id=%s: %s", r["id"], exc)
+
+    from .tools import timers as timers_mod
+
+    for t in timers_mod.vencidos():
+        try:
+            _dispatch_aviso(timers_mod.mensaje_aviso(t))
+            timers_mod.avanzar(t["id"])
+            log.info("temporizador %s avisado (%s)", t["id"], t.get("tipo"))
+        except Exception as exc:  # noqa: BLE001
+            log.warning("fallo el temporizador id=%s: %s", t["id"], exc)
+
+
+def _dispatch_aviso(texto: str) -> None:
+    """Aviso de temporizador/pomodoro: Telegram y/o avatar (voz), segun config."""
+    cfg = getattr(settings, "pomodoro", {}) or {}
+    if cfg.get("telegram", True):
+        try:
+            from .tools import messaging
+
+            messaging.enviar_telegram(texto)
+        except Exception as exc:  # noqa: BLE001
+            log.warning("no se pudo enviar el aviso por Telegram: %s", exc)
+    if cfg.get("avatar", True):
+        try:
+            from . import avatar
+
+            avatar.notificar_avatar(texto)
+        except Exception as exc:  # noqa: BLE001
+            log.warning("no se pudo avisar al avatar: %s", exc)
 
 
 def start(interval_seconds: int = 30) -> BackgroundScheduler:

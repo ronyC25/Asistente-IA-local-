@@ -43,6 +43,15 @@ avatar:
 telegram:
   poll_timeout: 25              # segundos de long polling de getUpdates
 
+# Pomodoro / temporizadores
+pomodoro:
+  trabajo_min: 25               # minutos de trabajo por ciclo
+  descanso_min: 5               # descanso corto
+  descanso_largo_min: 15        # descanso largo cada 'ciclos'
+  ciclos: 4                     # descanso largo cada N ciclos de trabajo
+  telegram: true                # avisar por Telegram al terminar
+  avatar: true                  # que el avatar lo diga (si esta abierto)
+
 # Google Calendar (sincronizacion bidireccional via OAuth)
 # Requiere autorizar una vez:  .\start.ps1 -Mode auth
 google_calendar:
