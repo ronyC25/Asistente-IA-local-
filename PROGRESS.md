@@ -77,7 +77,7 @@ avatar/              # app Live2D + overlay Electron (Fase 7)
   electron/          #   ventana overlay transparente y click-through
   setup_assets.ps1   #   descarga librerias + modelos Haru/Wanko (no versionados)
 start*.ps1           # lanzadores (venv + modos + start-all + auth)
-tests/               # 332 tests (pytest)
+tests/               # 338 tests (pytest)
 ```
 
 ## Herramientas del agente (27)
@@ -155,6 +155,10 @@ el **inicio de semana** es configurable (`week_start: domingo|lunes` en `setting
 por defecto **domingo**, asi el domingo ya es "esta semana"). El agente ademas lo fuerza
 en `agent._ajustar_args` (via `confirm.periodo_de_texto`), descartando `desde`/`hasta`
 mal calculados por el LLM. `desde`/`hasta` quedan solo para fechas explicitas.
+`listar_eventos` con `periodo` **excluye los eventos ya pasados** (salvo que el rango
+sea del pasado o `pasados=true`), asi "que eventos tengo esta semana" no muestra lo de
+ayer; para lo ya ocurrido, `confirm.quiere_eventos_pasados` ("que hubo/tuve/pasaron")
+fuerza `pasados=true`.
 
 **Cancelar/editar evento por referencia**: `confirm.referencia_evento` ("el que ya
 paso", "el de hoy", "el ultimo", "el proximo", "el mas antiguo") + `calendar.resolver_evento`

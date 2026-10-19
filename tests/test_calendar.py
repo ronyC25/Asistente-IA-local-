@@ -161,3 +161,17 @@ def test_cancelar_evento_por_titulo():
     c = calendar.cancelar_evento(titulo="caminar")
     assert c["id"] == e["id"]
     assert c["estado"] == "cancelado"
+
+
+def test_periodo_excluye_pasados():
+    pasado = (datetime.now() - timedelta(hours=2)).isoformat(timespec="minutes")
+    futuro = (datetime.now() + timedelta(hours=2)).isoformat(timespec="minutes")
+    calendar.crear_evento("Pasado", pasado)
+    calendar.crear_evento("Futuro", futuro)
+    r = calendar.listar_eventos(periodo="hoy")
+    titulos = {e["titulo"] for e in r["eventos"]}
+    assert "Futuro" in titulos
+    assert "Pasado" not in titulos
+    # con pasados=True si se incluye
+    r2 = calendar.listar_eventos(periodo="hoy", pasados=True)
+    assert {"Futuro", "Pasado"} <= {e["titulo"] for e in r2["eventos"]}

@@ -173,6 +173,10 @@ def listar_eventos(
         params.append(d.isoformat())
         where.append("inicio <= ?")
         params.append(h.isoformat())
+        # No mostrar lo que ya paso (salvo rango del pasado o pasados=True).
+        if not pasados and h >= datetime.now():
+            where.append("inicio >= ?")
+            params.append(datetime.now().isoformat())
     else:
         if desde:
             where.append("inicio >= ?")

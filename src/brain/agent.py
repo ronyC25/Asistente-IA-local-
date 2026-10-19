@@ -26,6 +26,7 @@ from .confirm import (
     pregunta_cuanto_falta,
     quiere_historial_recordatorios,
     quiere_proximo,
+    quiere_eventos_pasados,
     rango_de_texto,
     referencia_evento,
 )
@@ -254,6 +255,8 @@ class Agent:
                 if orden == "antiguas":
                     args["orden"] = "antiguos"
                     args.setdefault("limite", 1)
+                if quiere_eventos_pasados(user_text):
+                    args["pasados"] = True
                 if (proximo or falta) and not fechas:
                     # "el proximo evento" / "cuanto falta" = sin rango de fechas:
                     # no dejar un 'periodo' inventado por el modelo (rompia la

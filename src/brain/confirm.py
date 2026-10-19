@@ -550,6 +550,22 @@ def es_cancelacion(text: str) -> bool:
     return bool(set(_norm(text).split()) & _CANCEL_VERBS)
 
 
+_PASADO_WORDS = {"hubo", "hubieron", "tuve", "pasaron", "ocurrieron", "sucedieron"}
+
+
+def quiere_eventos_pasados(text: str) -> bool:
+    """True si el usuario pregunta por eventos YA ocurridos ('que hubo hoy')."""
+    t = _norm(text)
+    if not t:
+        return False
+    if any(
+        p in t
+        for p in ("ya paso", "ya pasaron", "ya ocurrio", "ya ocurrieron", "que paso")
+    ):
+        return True
+    return bool(set(t.split()) & _PASADO_WORDS)
+
+
 def es_referencia_objeto(text: str) -> bool:
     """True si usa un pronombre/anafora ('lo', 'ese', 'eso', 'cancelalo'...)."""
     t = _norm(text)

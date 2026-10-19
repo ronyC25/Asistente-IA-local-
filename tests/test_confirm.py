@@ -20,6 +20,7 @@ from src.brain.confirm import (
     periodo_de_texto,
     pregunta_capacidades,
     pregunta_cuanto_falta,
+    quiere_eventos_pasados,
     quiere_historial_recordatorios,
     quiere_proximo,
     rango_de_texto,
@@ -363,3 +364,17 @@ def test_referencia_evento(text, esperado):
 )
 def test_es_referencia_objeto(text, esperado):
     assert es_referencia_objeto(text) is esperado
+
+
+@pytest.mark.parametrize(
+    "text,esperado",
+    [
+        ("que eventos hubo hoy", True),
+        ("que eventos tuve esta semana", True),
+        ("que eventos ya pasaron", True),
+        ("que eventos tengo hoy", False),
+        ("que eventos tengo esta semana", False),
+    ],
+)
+def test_quiere_eventos_pasados(text, esperado):
+    assert quiere_eventos_pasados(text) is esperado
