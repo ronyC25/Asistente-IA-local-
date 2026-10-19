@@ -10,6 +10,7 @@ from src.brain.confirm import (
     dominio_lectura,
     es_busqueda,
     es_referencia_objeto,
+    estado_tareas_de_texto,
     etiqueta_de_texto,
     fecha_de_texto,
     intencion_temporizador,
@@ -378,3 +379,15 @@ def test_es_referencia_objeto(text, esperado):
 )
 def test_quiere_eventos_pasados(text, esperado):
     assert quiere_eventos_pasados(text) is esperado
+
+
+@pytest.mark.parametrize(
+    "text,esperado",
+    [
+        ("que tareas complete", "completadas"),
+        ("que tareas he terminado", "completadas"),
+        ("que tareas tengo", None),
+    ],
+)
+def test_estado_tareas_de_texto(text, esperado):
+    assert estado_tareas_de_texto(text) == esperado

@@ -590,3 +590,42 @@ def test_handle_cancela_evento_por_referencia(tmp_path, monkeypatch):
     assert s.pending == [("cancelar_evento", {"id": ev["id"]})]
     assert "Salir a caminar" in reply
     assert agent.client.called is False
+
+
+def test_sanear_args_alias_estado():
+    agent = Agent(_registry(), model="dummy", system_prompt="sys")
+    assert agent._sanear_args("listar_tareas", {"pendientes": True}) == {
+        "estado": "pendientes"
+    }
+    assert agent._sanear_args("listar_tareas", {"completadas": True}) == {
+        "estado": "completadas"
+    }
+    assert agent._sanear_args("listar_recordatorios", {"pendientes": True}) == {
+        "estado": "pendientes"
+    }
+
+
+def test_sanear_args_descarta_desconocidos():
+    agent = Agent(_registry(), model="dummy", system_prompt="sys")
+    out = agent._sanear_args("listar_tareas", {"estado": "todas", "foo": 1, "bar": "x"})
+    assert out == {"estado": "todas"}
+
+
+def test_ajustar_args_normaliza_pendientes():
+    agent = Agent(_registry(), model="dummy", system_prompt="sys")
+    out = agent._ajustar_args(
+        [("listar_tareas", {"pendientes": True})], "dame las tareas"
+    )
+    assert out == [("listar_tareas", {"estado": "pendientes"})]
+
+
+def test_ajustar_args_tareas_completadas():
+    agent = Agent(_registry(), model="dummy", system_prompt="sys")
+    out = agent._ajustar_args([("listar_tareas", {})], "que tareas complete")
+    assert dict(out)["listar_tareas"]["estado"] == "completadas"
+
+
+def test_ajustar_args_inyecta_tareas_completadas():
+    agent = Agent(_registry(), model="dummy", system_prompt="sys")
+    out = agent._ajustar_args([], "que tareas complete")
+    assert dict(out).get("listar_tareas", {}).get("estado") == "completadas"

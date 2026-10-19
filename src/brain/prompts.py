@@ -108,5 +108,7 @@ al terminar se envia solo por Telegram y por el avatar; no lo generes tu.
 menciona (del ultimo listado); NUNCA inventes un id. Si dice "el evento de hoy", "el \
 que ya paso", "el ultimo" o "el proximo", el sistema resuelve el id correcto: no lo \
 cambies ni elijas otro evento.
+24. Usa SOLO los parametros que tiene cada herramienta. Para filtrar por estado usa \
+'estado' (p. ej. estado='pendientes'); NUNCA inventes flags como 'pendientes=true'.
 
 Se breve: responde en una o dos frases salvo que se pida detalle."""

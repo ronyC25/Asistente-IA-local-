@@ -2,10 +2,13 @@
 from __future__ import annotations
 
 import json
+import logging
 from datetime import datetime
 from typing import Any
 
 import ollama
+
+log = logging.getLogger("asistente.agent")
 
 from .capabilities import texto_capacidades
 from .confirm import (
@@ -15,6 +18,7 @@ from .confirm import (
     dominio_lectura,
     es_cancelacion,
     es_referencia_objeto,
+    estado_tareas_de_texto,
     etiqueta_de_texto,
     fecha_de_texto,
     intencion_temporizador,
@@ -79,6 +83,16 @@ _TOOLS_CON_ETIQUETA = (
     "listar_eventos",
 )
 
+# El modelo a veces pasa el estado como flag (pendientes=True); se mapea a 'estado'.
+_ALIAS_ESTADO = {
+    "pendientes": "pendientes",
+    "pendiente": "pendientes",
+    "completadas": "completadas",
+    "completada": "completadas",
+    "todas": "todas",
+    "todos": "todas",
+}
+
 
 def _fechas_de_texto(user_text: str) -> dict:
     """Argumentos de fecha (periodo/dias o desde/hasta) resueltos en codigo."""
@@ -120,9 +134,13 @@ def _args_dominio(dominio: str, user_text: str | None) -> dict:
     txt = user_text or ""
     t = txt.lower()
     if dominio == "tareas":
-        args = {"estado": "todas"} if any(
-            w in t for w in ("todas", "todos", "base de datos", "completad")
-        ) else {}
+        est_txt = estado_tareas_de_texto(txt)
+        if est_txt:
+            args = {"estado": est_txt}
+        elif any(w in t for w in ("todas", "todos", "base de datos")):
+            args = {"estado": "todas"}
+        else:
+            args = {}
     elif dominio == "recordatorios":
         args = {"estado": "historial" if quiere_historial_recordatorios(txt) else "pendientes"}
     elif dominio == "notas":
@@ -216,6 +234,32 @@ class Agent:
             kwargs["keep_alive"] = self.keep_alive
         return self.client.chat(**kwargs)
 
+    def _sanear_args(self, name: str, args: dict) -> dict:
+        """Normaliza alias y descarta parametros que no existen en el schema.
+
+        El modelo a veces inventa parametros (p. ej. ``listar_tareas(pendientes=True)``);
+        los mapeamos a ``estado`` o los descartamos para no romper con ``TypeError``.
+        """
+        tool = self.registry.get(name)
+        if tool is None:
+            return dict(args or {})
+        props = set(
+            (tool.schema.get("function", {}).get("parameters", {}) or {}).get(
+                "properties", {}
+            )
+        )
+        out = dict(args or {})
+        if "estado" in props:
+            for k in list(out.keys()):
+                if k in _ALIAS_ESTADO and out[k]:
+                    out["estado"] = _ALIAS_ESTADO[k]
+                    del out[k]
+        for k in list(out.keys()):
+            if k not in props:
+                log.debug("descarto parametro desconocido: %s.%s", name, k)
+                del out[k]
+        return out
+
     def _ajustar_args(
         self,
         parsed: list[tuple[str, dict]],
@@ -227,6 +271,7 @@ class Agent:
         - historial de recordatorios (estado por defecto -> 'historial');
         - rangos de fecha relativos (fija 'periodo' y descarta desde/hasta).
         """
+        parsed = [(n, self._sanear_args(n, dict(a or {}))) for n, a in parsed]
         if not user_text:
             return parsed
         fechas = _fechas_de_texto(user_text)
@@ -247,6 +292,10 @@ class Agent:
                 _merge_fechas(args, fechas)
             if name in _TOOLS_CON_ETIQUETA and etiqueta and not args.get("etiqueta"):
                 args["etiqueta"] = etiqueta
+            if name == "listar_tareas":
+                est_txt = estado_tareas_de_texto(user_text)
+                if est_txt:
+                    args["estado"] = est_txt
             if orden and name == "consultar_notas":
                 args["orden"] = "antiguas" if orden == "antiguas" else "recientes"
                 if orden == "antiguas":
@@ -332,6 +381,7 @@ class Agent:
         tool = self.registry.get(name)
         if tool is None:
             return {"ok": False, "error": f"herramienta desconocida: {name}"}
+        args = self._sanear_args(name, dict(args or {}))
         try:
             return {"ok": True, "resultado": tool.run(args)}
         except Exception as exc:  # noqa: BLE001 - se devuelve al modelo

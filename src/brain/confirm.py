@@ -566,6 +566,36 @@ def quiere_eventos_pasados(text: str) -> bool:
     return bool(set(t.split()) & _PASADO_WORDS)
 
 
+_COMPLETADAS_WORDS = {
+    "completadas",
+    "completada",
+    "completados",
+    "completado",
+    "terminadas",
+    "terminada",
+    "terminados",
+    "terminado",
+    "hechas",
+    "hechos",
+    "realizadas",
+    "realizados",
+    "finalizadas",
+    "finalizados",
+    "complete",
+    "termine",
+    "realice",
+    "finalice",
+}
+
+
+def estado_tareas_de_texto(text: str) -> str | None:
+    """Detecta si piden tareas COMPLETADAS ('que complete/termine')."""
+    t = _norm(text)
+    if not t:
+        return None
+    return "completadas" if (set(t.split()) & _COMPLETADAS_WORDS) else None
+
+
 def es_referencia_objeto(text: str) -> bool:
     """True si usa un pronombre/anafora ('lo', 'ese', 'eso', 'cancelalo'...)."""
     t = _norm(text)

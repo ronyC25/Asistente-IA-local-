@@ -77,7 +77,7 @@ avatar/              # app Live2D + overlay Electron (Fase 7)
   electron/          #   ventana overlay transparente y click-through
   setup_assets.ps1   #   descarga librerias + modelos Haru/Wanko (no versionados)
 start*.ps1           # lanzadores (venv + modos + start-all + auth)
-tests/               # 338 tests (pytest)
+tests/               # 346 tests (pytest)
 ```
 
 ## Herramientas del agente (27)
@@ -321,6 +321,12 @@ aplicacion** (requiere verificacion en 2 pasos).
   **ejecuta la lectura y pide el resumen** (fallback). **Cortador de bucle**: si el
   modelo re-llama lecturas ya ejecutadas en el turno, se fuerza un resumen sin
   herramientas (evita "demasiados pasos" en sesiones largas).
+- **Parametros inventados por el modelo**: `agent._sanear_args` normaliza alias
+  (`pendientes=True` -> `estado='pendientes'`, `completadas=True` -> `estado='completadas'`)
+  y **descarta** claves que no existen en el schema de la tool, evitando errores tipo
+  "listar_tareas no acepta el parametro pendientes". Ademas `confirm.estado_tareas_de_texto`
+  fuerza `estado='completadas'` en "que tareas complete/termine" (tambien en la
+  inyeccion determinista `_args_dominio`).
 - **Capacidades/ayuda**: "¿que puedes hacer?", "tus funciones", "ayuda" o `/ayuda` se
   responden de forma **determinista** desde `src/brain/capabilities.py` (lista generada
   a partir del registro de tools, **sin pasar por el LLM**) → completa y sin truncar

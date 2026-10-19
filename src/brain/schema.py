@@ -269,8 +269,10 @@ def build_tools() -> list[dict]:
         {
             "name": "listar_tareas",
             "description": (
-                "Lista las tareas guardadas con filtros opcionales. Para rangos de "
-                "fecha usa 'periodo' (hoy, esta_semana, proximos_dias, etc.)."
+                "Lista las tareas guardadas con filtros opcionales. El estado se filtra "
+                "con 'estado' ('pendientes'|'completadas'|'todas'), NO con un flag "
+                "'pendientes'. Para rangos de fecha usa 'periodo' (hoy, esta_semana, "
+                "proximos_dias, etc.)."
             ),
             "parameters": {
                 "type": "object",
@@ -411,7 +413,10 @@ def build_tools() -> list[dict]:
         },
         {
             "name": "listar_recordatorios",
-            "description": "Lista los recordatorios guardados.",
+            "description": (
+                "Lista los recordatorios guardados. El estado se filtra con 'estado' "
+                "('pendientes'|'enviados'|'cancelados'|'historial'|'todos')."
+            ),
             "parameters": {
                 "type": "object",
                 "properties": {
