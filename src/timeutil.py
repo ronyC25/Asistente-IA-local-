@@ -23,10 +23,26 @@ PERIODOS = (
     "fin_de_semana",
     "esta_semana",
     "semana_que_viene",
+    "semana_pasada",
     "proximos_dias",
     "este_mes",
     *_DIAS_SEMANA,
 )
+
+
+def _semana_inicio(hoy: date, week_start: str | None) -> date:
+    """Primer dia de la semana de ``hoy`` segun ``week_start`` (domingo|lunes)."""
+    ws = 6 if str(week_start or "lunes").strip().lower() in ("domingo", "sunday", "dom") else 0
+    return hoy - timedelta(days=(hoy.weekday() - ws) % 7)
+
+
+def _week_start_config() -> str:
+    try:
+        from .config import settings
+
+        return settings.week_start
+    except Exception:  # noqa: BLE001
+        return "lunes"
 
 
 def _inicio_dia(d: date) -> datetime:
@@ -38,7 +54,10 @@ def _fin_dia(d: date) -> datetime:
 
 
 def resolver_periodo(
-    periodo: str, dias: int | None = None, ahora: datetime | None = None
+    periodo: str,
+    dias: int | None = None,
+    ahora: datetime | None = None,
+    week_start: str | None = None,
 ) -> tuple[datetime, datetime]:
     """Traduce una etiqueta de periodo a un rango (desde, hasta) inclusive.
 
@@ -47,6 +66,7 @@ def resolver_periodo(
     """
     ahora = ahora or datetime.now()
     hoy = ahora.date()
+    ws = week_start or _week_start_config()
     p = (periodo or "").strip().lower()
 
     if p == "hoy":
@@ -62,11 +82,14 @@ def resolver_periodo(
         sab = hoy + timedelta(days=5 - wd) if wd <= 4 else hoy - timedelta(days=wd - 5)
         return _inicio_dia(sab), _fin_dia(sab + timedelta(days=1))
     if p == "esta_semana":
-        lun = hoy - timedelta(days=hoy.weekday())
-        return _inicio_dia(lun), _fin_dia(lun + timedelta(days=6))
+        ini = _semana_inicio(hoy, ws)
+        return _inicio_dia(ini), _fin_dia(ini + timedelta(days=6))
     if p == "semana_que_viene":
-        lun = hoy - timedelta(days=hoy.weekday()) + timedelta(days=7)
-        return _inicio_dia(lun), _fin_dia(lun + timedelta(days=6))
+        ini = _semana_inicio(hoy, ws) + timedelta(days=7)
+        return _inicio_dia(ini), _fin_dia(ini + timedelta(days=6))
+    if p == "semana_pasada":
+        ini = _semana_inicio(hoy, ws) - timedelta(days=7)
+        return _inicio_dia(ini), _fin_dia(ini + timedelta(days=6))
     if p == "este_mes":
         ini = hoy.replace(day=1)
         fin = (

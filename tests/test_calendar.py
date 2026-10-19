@@ -140,3 +140,24 @@ def test_etiquetas_y_filtro():
     assert e["etiquetas"] == ["trabajo"]
     assert calendar.listar_eventos(etiqueta="trabajo")["total"] == 1
     assert calendar.listar_eventos(etiqueta="otra")["total"] == 0
+
+
+def test_resolver_evento():
+    pasado = (datetime.now() - timedelta(hours=1)).isoformat(timespec="minutes")
+    futuro = (datetime.now() + timedelta(days=2)).isoformat(timespec="minutes")
+    e_ant = calendar.crear_evento("Antiguo", "2020-01-01T10:00")
+    e_pas = calendar.crear_evento("Pasado hoy", pasado)
+    e_fut = calendar.crear_evento("Futuro", futuro)
+    assert calendar.resolver_evento("hoy_pasado")["id"] == e_pas["id"]
+    assert calendar.resolver_evento("ultimo_pasado")["id"] == e_pas["id"]
+    assert calendar.resolver_evento("proximo")["id"] == e_fut["id"]
+    assert calendar.resolver_evento("antiguo")["id"] == e_ant["id"]
+
+
+def test_cancelar_evento_por_titulo():
+    e = calendar.crear_evento(
+        "Salir a caminar", (datetime.now() + timedelta(days=1)).isoformat(timespec="minutes")
+    )
+    c = calendar.cancelar_evento(titulo="caminar")
+    assert c["id"] == e["id"]
+    assert c["estado"] == "cancelado"

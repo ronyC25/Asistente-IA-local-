@@ -54,15 +54,29 @@ def test_fin_de_semana_en_domingo():
 
 
 def test_esta_semana():
-    d, h = resolver_periodo("esta_semana", ahora=_jueves())
+    d, h = resolver_periodo("esta_semana", ahora=_jueves(), week_start="lunes")
     assert d.date().isoformat() == "2026-10-12"  # lunes
     assert h.date().isoformat() == "2026-10-18"  # domingo
 
 
 def test_semana_que_viene():
-    d, h = resolver_periodo("semana_que_viene", ahora=_jueves())
+    d, h = resolver_periodo("semana_que_viene", ahora=_jueves(), week_start="lunes")
     assert d.date().isoformat() == "2026-10-19"
     assert h.date().isoformat() == "2026-10-25"
+
+
+def test_esta_semana_domingo():
+    # domingo 2026-10-18: la semana empieza hoy (domingo)
+    dom = datetime(2026, 10, 18, 10, 0)
+    d, h = resolver_periodo("esta_semana", ahora=dom, week_start="domingo")
+    assert d.date().isoformat() == "2026-10-18"
+    assert h.date().isoformat() == "2026-10-24"
+
+
+def test_semana_pasada():
+    d, h = resolver_periodo("semana_pasada", ahora=_jueves(), week_start="lunes")
+    assert d.date().isoformat() == "2026-10-05"
+    assert h.date().isoformat() == "2026-10-11"
 
 
 def test_este_mes():

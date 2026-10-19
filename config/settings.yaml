@@ -9,6 +9,7 @@ max_tool_iters: 6
 
 assistant_name: Jarvis
 language: es
+week_start: domingo        # inicio de semana para 'esta semana'/'semana que viene' (domingo | lunes)
 
 database: data/assistant.db
 

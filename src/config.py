@@ -30,6 +30,7 @@ class Settings:
 
         self.assistant_name = data.get("assistant_name", "Jarvis")
         self.language = data.get("language", "es")
+        self.week_start = str(data.get("week_start", "domingo")).strip().lower()
 
         db = data.get("database", "data/assistant.db")
         self.database = db if os.path.isabs(db) else str((ROOT / db).resolve())

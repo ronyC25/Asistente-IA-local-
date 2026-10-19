@@ -100,6 +100,7 @@ Escribe (o di) cosas como:
 - "Que hay el fin de semana?"
 - "Que eventos hay la ultima semana de octubre?"  # tambien: "la primera semana de <mes>"
 - "Cuanto falta para el proximo evento?"        # el tiempo restante se calcula en codigo
+- "Cancela el evento de hoy que ya paso"          # resuelve el id correcto (no cancela otro)
 - "Cual es la nota mas antigua?"                # y "las notas de esta semana"
 - "Crea una lista de la compra con leche y pan" # se guarda con sus elementos
 - "Recuerdame llamar al banco manana a las 9"
@@ -124,6 +125,9 @@ Las acciones que modifican datos piden confirmacion (`si` / `no`).
 
 - `config/settings.yaml`: modelo, parametros web y de voz.
 - `.env` (no versionado): credenciales de Telegram y email.
+
+La **semana** ("esta semana", "semana que viene", "semana pasada") empieza en **domingo**
+por defecto; se cambia con `week_start: domingo|lunes` en `config/settings.yaml`.
 
 ### Telegram
 1. Crea un bot con `@BotFather` y copia el token en `TELEGRAM_BOT_TOKEN`.

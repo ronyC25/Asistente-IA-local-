@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import json
+from datetime import datetime
 from typing import Any
 
 import ollama
@@ -12,6 +13,8 @@ from .confirm import (
     buscar_termino_de_texto,
     classify_confirmation,
     dominio_lectura,
+    es_cancelacion,
+    es_referencia_objeto,
     etiqueta_de_texto,
     fecha_de_texto,
     intencion_temporizador,
@@ -24,6 +27,7 @@ from .confirm import (
     quiere_historial_recordatorios,
     quiere_proximo,
     rango_de_texto,
+    referencia_evento,
 )
 from .registry import Registry
 
@@ -32,6 +36,7 @@ class Session:
     def __init__(self, system_prompt: str) -> None:
         self.messages: list[dict] = [{"role": "system", "content": system_prompt}]
         self.pending: list[tuple[str, dict]] | None = None
+        self.ultimos_eventos: list[dict] = []
 
 
 def _norm_args(args: Any) -> dict:
@@ -211,7 +216,10 @@ class Agent:
         return self.client.chat(**kwargs)
 
     def _ajustar_args(
-        self, parsed: list[tuple[str, dict]], user_text: str | None
+        self,
+        parsed: list[tuple[str, dict]],
+        user_text: str | None,
+        session: Session | None = None,
     ) -> list[tuple[str, dict]]:
         """Ajustes deterministas de argumentos, para no depender del modelo:
 
@@ -265,6 +273,43 @@ class Agent:
                 tool_name = _DOMINIO_TOOL[dominio]
                 if tool_name not in {n for n, _ in ajustado}:
                     ajustado.append((tool_name, _args_dominio(dominio, user_text)))
+        # Cancelar/editar evento: resolver el id por referencia temporal (el
+        # modelo a veces elige un id equivocado, p. ej. cancelar "Mi cumpleaños").
+        if any(n in ("cancelar_evento", "editar_evento") for n, _ in ajustado):
+            from ..tools import calendar
+
+            elegido = None
+            ref = referencia_evento(user_text)
+            if ref:
+                ev = calendar.resolver_evento(ref)
+                if ev:
+                    elegido = ev
+            elif (
+                es_referencia_objeto(user_text)
+                and session is not None
+                and session.ultimos_eventos
+            ):
+                cands = session.ultimos_eventos
+                pasados = [
+                    e
+                    for e in cands
+                    if e.get("inicio")
+                    and datetime.fromisoformat(e["inicio"]) < datetime.now()
+                ]
+                if len(cands) == 1:
+                    elegido = cands[0]
+                elif len(pasados) == 1:
+                    elegido = pasados[0]
+            if elegido and elegido.get("id") is not None:
+                ajustado = [
+                    (
+                        name,
+                        {**(args or {}), "id": elegido["id"]},
+                    )
+                    if name in ("cancelar_evento", "editar_evento")
+                    else (name, args)
+                    for name, args in ajustado
+                ]
         return ajustado
 
     def _trim(self, session: Session) -> None:
@@ -308,6 +353,15 @@ class Agent:
                     session.messages.append(
                         {"role": "tool", "content": json.dumps(result, ensure_ascii=False)}
                     )
+                session.messages.append(
+                    {
+                        "role": "system",
+                        "content": (
+                            "La accion ya se ejecuto. Resume el resultado al usuario "
+                            "en una frase, sin volver a llamar ninguna herramienta."
+                        ),
+                    }
+                )
             else:
                 session.messages.append(
                     {
@@ -333,6 +387,38 @@ class Agent:
         intent = intencion_temporizador(user_text)
         if intent:
             return self._manejar_temporizador(intent, session, user_text), None
+
+        # Cancelar un EVENTO por referencia temporal ("el que ya paso", "el de
+        # hoy", "cancelalo"): resolver el id de forma determinista (el modelo a
+        # veces no llama la herramienta o elige el evento equivocado).
+        if es_cancelacion(user_text):
+            from ..tools import calendar
+
+            ev = None
+            ref = referencia_evento(user_text)
+            if ref and dominio_lectura(user_text) == "eventos":
+                ev = calendar.resolver_evento(ref)
+            elif es_referencia_objeto(user_text) and session.ultimos_eventos:
+                cands = session.ultimos_eventos
+                pasados = [
+                    e
+                    for e in cands
+                    if e.get("inicio")
+                    and datetime.fromisoformat(e["inicio"]) < datetime.now()
+                ]
+                elegido = (
+                    cands[0]
+                    if len(cands) == 1
+                    else (pasados[0] if len(pasados) == 1 else None)
+                )
+                if elegido and elegido.get("id") is not None:
+                    ev = calendar.obtener_evento(elegido["id"])
+            if ev and ev.get("estado") == "activo":
+                session.pending = [("cancelar_evento", {"id": ev["id"]})]
+                return (
+                    build_proposal(session.pending, self.registry),
+                    {"type": "confirm"},
+                )
 
         self._trim(session)
         session.messages.append({"role": "user", "content": user_text})
@@ -493,7 +579,7 @@ class Agent:
                 (tc["function"]["name"], _norm_args(tc["function"].get("arguments")))
                 for tc in tool_calls
             ]
-            parsed = self._ajustar_args(parsed, user_text)
+            parsed = self._ajustar_args(parsed, user_text, session)
             assistant_msg = {
                 "role": "assistant",
                 "content": message.get("content") or "",
@@ -539,6 +625,13 @@ class Agent:
             for name, args in reads:
                 seen_reads.add((name, json.dumps(args, sort_keys=True)))
                 result = self._execute(name, args)
+                if name == "listar_eventos":
+                    evs = (result.get("resultado") or {}).get("eventos")
+                    if isinstance(evs, list):
+                        session.ultimos_eventos = [
+                            {"id": e.get("id"), "inicio": e.get("inicio")}
+                            for e in evs
+                        ]
                 session.messages.append(
                     {"role": "tool", "content": json.dumps(result, ensure_ascii=False)}
                 )

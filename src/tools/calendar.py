@@ -238,6 +238,50 @@ def obtener_evento(id: int) -> dict | None:
     return _row(row) if row is not None else None
 
 
+def resolver_evento(ref: str, ahora: datetime | None = None) -> dict | None:
+    """Resuelve una referencia a un evento por su descripcion temporal.
+
+    ``ref``: 'hoy_pasado' (evento de hoy ya ocurrido), 'hoy', 'ultimo_pasado'
+    (el pasado mas reciente), 'proximo' (el siguiente) o 'antiguo' (el mas viejo).
+    Devuelve el evento (dict) o None.
+    """
+    ahora = ahora or datetime.now()
+    hoy = ahora.date()
+    conn = _conn()
+    try:
+        if ref in ("hoy_pasado", "hoy"):
+            rows = conn.execute(
+                "SELECT * FROM events WHERE estado = 'activo' AND date(inicio) = date(?) "
+                "ORDER BY inicio, id",
+                (hoy.isoformat(),),
+            ).fetchall()
+            if ref == "hoy_pasado":
+                rows = [r for r in rows if datetime.fromisoformat(r["inicio"]) < ahora]
+            row = rows[-1] if rows else None
+        elif ref == "ultimo_pasado":
+            row = conn.execute(
+                "SELECT * FROM events WHERE estado = 'activo' "
+                "AND datetime(inicio) < datetime(?) ORDER BY inicio DESC, id DESC LIMIT 1",
+                (ahora.isoformat(),),
+            ).fetchone()
+        elif ref == "proximo":
+            row = conn.execute(
+                "SELECT * FROM events WHERE estado = 'activo' "
+                "AND datetime(inicio) >= datetime(?) ORDER BY inicio ASC, id ASC LIMIT 1",
+                (ahora.isoformat(),),
+            ).fetchone()
+        elif ref == "antiguo":
+            row = conn.execute(
+                "SELECT * FROM events WHERE estado = 'activo' "
+                "ORDER BY inicio ASC, id ASC LIMIT 1"
+            ).fetchone()
+        else:
+            row = None
+    finally:
+        conn.close()
+    return _row(row) if row is not None else None
+
+
 def editar_evento(
     id: int,
     titulo: str | None = None,
@@ -295,10 +339,34 @@ def editar_evento(
     return _refetch(row["id"])
 
 
-def cancelar_evento(id: int) -> dict:
+def _find_evento(
+    conn: sqlite3.Connection, id: int | None, titulo: str | None
+) -> sqlite3.Row:
+    if id is not None:
+        return _find(conn, id)
+    if titulo:
+        rows = conn.execute(
+            "SELECT * FROM events WHERE estado = 'activo' AND titulo LIKE ? "
+            "ORDER BY inicio DESC",
+            (f"%{str(titulo).strip()}%",),
+        ).fetchall()
+        if not rows:
+            raise ValueError(
+                f"no encontre ningun evento activo que coincida con {titulo!r}"
+            )
+        if len(rows) > 1:
+            ids = ", ".join(str(r["id"]) for r in rows)
+            raise ValueError(
+                f"hay varios eventos que coinciden con {titulo!r} (ids: {ids})."
+            )
+        return rows[0]
+    raise ValueError("indica el id o el titulo del evento")
+
+
+def cancelar_evento(id: int | None = None, titulo: str | None = None) -> dict:
     conn = _conn()
     try:
-        row = _find(conn, id)
+        row = _find_evento(conn, id, titulo)
         if row["estado"] != "cancelado":
             conn.execute(
                 "UPDATE events SET estado = 'cancelado', "

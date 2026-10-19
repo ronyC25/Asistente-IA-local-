@@ -95,6 +95,8 @@ def _evento_ref(a: dict) -> str:
     if a.get("id") is not None:
         e = calendar.obtener_evento(a["id"])
         return f"{a['id']} «{e['titulo']}»" if e else str(a["id"])
+    if a.get("titulo"):
+        return repr(a["titulo"])
     return "?"
 
 
@@ -615,11 +617,19 @@ def build_tools() -> list[dict]:
         },
         {
             "name": "cancelar_evento",
-            "description": "Cancela un evento por su id.",
+            "description": (
+                "Cancela un evento por su id o por su titulo. Usa el id EXACTO del "
+                "evento que el usuario menciona (del ultimo listado); no lo inventes."
+            ),
             "parameters": {
                 "type": "object",
-                "properties": {"id": {"type": "integer"}},
-                "required": ["id"],
+                "properties": {
+                    "id": {"type": "integer", "description": "Id del evento"},
+                    "titulo": {
+                        "type": "string",
+                        "description": "Texto parcial del titulo del evento",
+                    },
+                },
             },
             "func": calendar.cancelar_evento,
             "kind": WRITE,

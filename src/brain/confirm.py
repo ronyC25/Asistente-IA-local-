@@ -483,6 +483,81 @@ def intencion_temporizador(text: str) -> dict | None:
     return None
 
 
+_REF_PASADO_RE = re.compile(
+    r"(que ya paso|ya paso|que ya ocurrio|ya ocurrio|que ya termino|ya termino)"
+)
+_REF_PRONOMBRE = {
+    "lo",
+    "la",
+    "los",
+    "las",
+    "ese",
+    "esa",
+    "eso",
+    "esto",
+    "esta",
+    "aquel",
+    "aquella",
+}
+
+
+def referencia_evento(text: str) -> str | None:
+    """Clasifica una referencia a un evento.
+
+    Devuelve 'hoy_pasado', 'ultimo_pasado', 'proximo' o 'antiguo' (o None).
+    """
+    t = _norm(text)
+    if not t:
+        return None
+    palabras = set(t.split())
+    if _REF_PASADO_RE.search(t):
+        return "hoy_pasado" if "hoy" in palabras else "ultimo_pasado"
+    if "de hoy" in t or "hoy" in palabras:
+        if not (palabras & {"proximo", "proxima", "siguiente", "futuro"}):
+            return "hoy_pasado"
+    if palabras & {"ultimo", "ultima", "pasado", "pasada", "anterior"}:
+        return "ultimo_pasado"
+    if palabras & {"proximo", "proxima", "siguiente"}:
+        return "proximo"
+    if palabras & {"antiguo", "antigua", "primero", "primera", "viejo", "vieja"}:
+        return "antiguo"
+    return None
+
+
+_REF_OBJETO_RE = re.compile(r"\b(?:cancel|borr|elimin|anul|quit|remov)\w*(?:lo|la|los|las)\b")
+_CANCEL_VERBS = {
+    "cancela",
+    "cancelar",
+    "cancelalo",
+    "cancelala",
+    "elimina",
+    "eliminar",
+    "eliminalo",
+    "borra",
+    "borrar",
+    "borralo",
+    "anula",
+    "anular",
+    "quita",
+    "quitar",
+    "remueve",
+    "remover",
+}
+
+
+def es_cancelacion(text: str) -> bool:
+    """True si el usuario pide cancelar/eliminar algo."""
+    return bool(set(_norm(text).split()) & _CANCEL_VERBS)
+
+
+def es_referencia_objeto(text: str) -> bool:
+    """True si usa un pronombre/anafora ('lo', 'ese', 'eso', 'cancelalo'...)."""
+    t = _norm(text)
+    if set(t.split()) & _REF_PRONOMBRE:
+        return True
+    return bool(_REF_OBJETO_RE.search(t))
+
+
 def orden_de_texto(text: str) -> str | None:
     """Detecta 'lo mas antiguo' o 'lo mas reciente' (None si no aplica)."""
     t = _norm(text)
@@ -808,6 +883,11 @@ def periodo_de_texto(text: str) -> tuple[str, int | None] | None:
         return ("semana_que_viene", None)
     if "esta semana" in t:
         return ("esta_semana", None)
+    if any(
+        frase in t
+        for frase in ("semana pasada", "semana anterior", "la anterior semana")
+    ):
+        return ("semana_pasada", None)
     if "este mes" in t or "mes en curso" in t:
         return ("este_mes", None)
     m = re.search(r"(?:proximos|proximas|siguientes)\s+(\d+)\s+dias?", t)

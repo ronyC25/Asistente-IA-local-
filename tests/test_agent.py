@@ -513,3 +513,80 @@ def test_ajustar_args_estado_temporizador():
     agent = Agent(_registry(), model="dummy", system_prompt="sys")
     out = agent._ajustar_args([], "cuanto queda del pomodoro")
     assert "consultar_temporizador" in [n for n, _ in out]
+
+
+def test_ajustar_args_resuelve_evento_por_referencia(tmp_path, monkeypatch):
+    from datetime import datetime, timedelta
+
+    from src import config
+    from src.tools import calendar
+
+    monkeypatch.setattr(config.settings, "database", str(tmp_path / "t.db"))
+    monkeypatch.setattr(
+        config.settings,
+        "google_calendar",
+        dict(config.settings.google_calendar, enabled=False),
+    )
+    calendar._conn().close()
+    calendar.crear_evento("Antiguo", "2020-01-01T10:00")  # id 1
+    ev = calendar.crear_evento(
+        "Salir a caminar",
+        (datetime.now() - timedelta(hours=1)).isoformat(timespec="minutes"),
+    )  # id 2
+    agent = Agent(_registry(), model="dummy", system_prompt="sys")
+    parsed = [("cancelar_evento", {"id": 1})]
+    out = agent._ajustar_args(parsed, "cancela el evento que ya paso")
+    assert dict(out)["cancelar_evento"]["id"] == ev["id"]
+
+
+def test_ajustar_args_evento_pronombre_usa_ultimos(tmp_path, monkeypatch):
+    from datetime import datetime, timedelta
+
+    from src import config
+    from src.tools import calendar
+
+    monkeypatch.setattr(config.settings, "database", str(tmp_path / "t.db"))
+    monkeypatch.setattr(
+        config.settings,
+        "google_calendar",
+        dict(config.settings.google_calendar, enabled=False),
+    )
+    calendar._conn().close()
+    ev = calendar.crear_evento(
+        "Salir a caminar",
+        (datetime.now() - timedelta(hours=1)).isoformat(timespec="minutes"),
+    )
+    agent = Agent(_registry(), model="dummy", system_prompt="sys")
+    session = agent.new_session()
+    session.ultimos_eventos = [{"id": ev["id"], "inicio": ev["inicio"]}]
+    parsed = [("cancelar_evento", {"id": 999})]
+    out = agent._ajustar_args(parsed, "cancelalo", session)
+    assert dict(out)["cancelar_evento"]["id"] == ev["id"]
+
+
+def test_handle_cancela_evento_por_referencia(tmp_path, monkeypatch):
+    from datetime import datetime, timedelta
+
+    from src import config
+    from src.tools import calendar
+
+    monkeypatch.setattr(config.settings, "database", str(tmp_path / "t.db"))
+    monkeypatch.setattr(
+        config.settings,
+        "google_calendar",
+        dict(config.settings.google_calendar, enabled=False),
+    )
+    calendar._conn().close()
+    calendar.crear_evento("Antiguo", "2020-01-01T10:00")  # id 1
+    ev = calendar.crear_evento(
+        "Salir a caminar",
+        (datetime.now() - timedelta(hours=1)).isoformat(timespec="minutes"),
+    )  # id 2
+    agent = Agent(_registry(), model="dummy", system_prompt="sys")
+    agent.client = _NoCallClient()
+    s = agent.new_session()
+    reply, info = agent.handle(s, "cancela el evento que ya paso")
+    assert info == {"type": "confirm"}
+    assert s.pending == [("cancelar_evento", {"id": ev["id"]})]
+    assert "Salir a caminar" in reply
+    assert agent.client.called is False

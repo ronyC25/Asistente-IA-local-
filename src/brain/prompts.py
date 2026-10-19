@@ -104,5 +104,9 @@ recortes.
 tipo y minutos, o 'cancelar') y consultar_temporizador para el estado o cuanto queda. \
 El pomodoro es de 25 min de trabajo y 5 de descanso (descanso largo cada 4). El aviso \
 al terminar se envia solo por Telegram y por el avatar; no lo generes tu.
+23. Para CANCELAR o EDITAR un evento usa el id EXACTO del evento que el usuario \
+menciona (del ultimo listado); NUNCA inventes un id. Si dice "el evento de hoy", "el \
+que ya paso", "el ultimo" o "el proximo", el sistema resuelve el id correcto: no lo \
+cambies ni elijas otro evento.
 
 Se breve: responde en una o dos frases salvo que se pida detalle."""

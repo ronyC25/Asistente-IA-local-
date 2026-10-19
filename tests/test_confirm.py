@@ -9,6 +9,7 @@ from src.brain.confirm import (
     classify_confirmation,
     dominio_lectura,
     es_busqueda,
+    es_referencia_objeto,
     etiqueta_de_texto,
     fecha_de_texto,
     intencion_temporizador,
@@ -22,6 +23,7 @@ from src.brain.confirm import (
     quiere_historial_recordatorios,
     quiere_proximo,
     rango_de_texto,
+    referencia_evento,
 )
 
 
@@ -333,3 +335,31 @@ def test_intencion_temporizador_cancelar():
 
 def test_intencion_temporizador_none():
     assert intencion_temporizador("que tareas tengo") is None
+
+
+@pytest.mark.parametrize(
+    "text,esperado",
+    [
+        ("cancela el evento que ya paso", "ultimo_pasado"),
+        ("cancela el evento de hoy", "hoy_pasado"),
+        ("borra el ultimo evento", "ultimo_pasado"),
+        ("cancela el proximo evento", "proximo"),
+        ("elimina el evento mas antiguo", "antiguo"),
+        ("cancela mi cumpleanos", None),
+    ],
+)
+def test_referencia_evento(text, esperado):
+    assert referencia_evento(text) == esperado
+
+
+@pytest.mark.parametrize(
+    "text,esperado",
+    [
+        ("cancelalo", True),
+        ("cancela ese evento", True),
+        ("borra eso", True),
+        ("cancela mi cumpleanos", False),
+    ],
+)
+def test_es_referencia_objeto(text, esperado):
+    assert es_referencia_objeto(text) is esperado

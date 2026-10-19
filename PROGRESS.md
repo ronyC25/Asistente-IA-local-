@@ -77,7 +77,7 @@ avatar/              # app Live2D + overlay Electron (Fase 7)
   electron/          #   ventana overlay transparente y click-through
   setup_assets.ps1   #   descarga librerias + modelos Haru/Wanko (no versionados)
 start*.ps1           # lanzadores (venv + modos + start-all + auth)
-tests/               # 315 tests (pytest)
+tests/               # 332 tests (pytest)
 ```
 
 ## Herramientas del agente (27)
@@ -149,11 +149,19 @@ seguridad. Los conflictos los resuelve `google_calendar.conflict_policy`
 
 Rangos de fecha **deterministas**: las tools de listado aceptan `periodo` (+ `dias`):
 `hoy`, `manana`, `pasado_manana`, `fin_de_semana`, `esta_semana`, `semana_que_viene`,
-`proximos_dias` (N dias naturales desde hoy), `este_mes`, o un dia (`lunes`..`domingo`).
-`src/timeutil.resolver_periodo` calcula el rango (no el modelo). El agente ademas lo
-fuerza en `agent._ajustar_args` (via `confirm.periodo_de_texto`), descartando
-`desde`/`hasta` mal calculados por el LLM. `desde`/`hasta` quedan solo para fechas
-explicitas.
+`semana_pasada`, `proximos_dias` (N dias naturales desde hoy), `este_mes`, o un dia
+(`lunes`..`domingo`). `src/timeutil.resolver_periodo` calcula el rango (no el modelo) y
+el **inicio de semana** es configurable (`week_start: domingo|lunes` en `settings.yaml`;
+por defecto **domingo**, asi el domingo ya es "esta semana"). El agente ademas lo fuerza
+en `agent._ajustar_args` (via `confirm.periodo_de_texto`), descartando `desde`/`hasta`
+mal calculados por el LLM. `desde`/`hasta` quedan solo para fechas explicitas.
+
+**Cancelar/editar evento por referencia**: `confirm.referencia_evento` ("el que ya
+paso", "el de hoy", "el ultimo", "el proximo", "el mas antiguo") + `calendar.resolver_evento`
+resuelven el **id correcto** de forma determinista. `agent.handle` intercepta "cancela
+el evento que ya paso"/"cancelalo" y propone el evento correcto (sin depender del
+modelo); `agent._ajustar_args` sobrescribe el id si el modelo eligio otro. Ademas
+`cancelar_evento` acepta `titulo` (cancelar por titulo).
 
 ## Como arrancar
 
