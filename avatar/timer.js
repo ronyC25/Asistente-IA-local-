@@ -65,6 +65,11 @@
   .jt .jt-actions { display: flex; gap: 8px; margin-top: 9px; }
   .jt .jt-empty { text-align: center; color: #8b97b3; font-size: 13px; padding: 18px 8px; }
   .jt .jt-empty .jt-ico { display: block; font-size: 30px; margin-bottom: 6px; opacity: .8; }
+  .jt .jt-msg {
+    display: none; font-size: 12px; color: #ff9c9c; background: rgba(120,30,40,.35);
+    border: 1px solid #6a2630; border-radius: 10px; padding: 8px 10px; margin-bottom: 10px;
+  }
+  .jt .jt-msg.on { display: block; }
   `;
   if (!document.getElementById("jt-style")) {
     const s = document.createElement("style");
@@ -92,6 +97,7 @@
     root.dataset.jtMounted = "1";
     root.classList.add("jt");
     root.innerHTML = `
+      <div id="jt-msg" class="jt-msg"></div>
       <div class="jt-panel">
         <div class="jt-h"><span class="jt-ico">🍅</span> Pomodoro</div>
         <div class="jt-grid">
@@ -115,6 +121,11 @@
 
     const q = (id) => root.querySelector("#" + id);
     const num = (id) => parseInt(q(id).value, 10) || null;
+    const setMsg = (t) => {
+      const m = q("jt-msg");
+      m.textContent = t || "";
+      m.classList.toggle("on", !!t);
+    };
     let inited = false;
     const state = { temporizadores: [] };
 
@@ -193,6 +204,7 @@
     async function cargar() {
       try {
         const r = await fetch("/temporizadores", { cache: "no-store" });
+        if (!r.ok) throw new Error("HTTP " + r.status);
         const data = await r.json();
         state.temporizadores = data.temporizadores || [];
         if (data.config && !inited) {
@@ -202,21 +214,24 @@
           q("jt-largo").value = data.config.descanso_largo_min ?? 15;
           q("jt-ciclos").value = data.config.ciclos ?? 4;
         }
+        setMsg("");
         render();
       } catch (e) {
-        /* sin conexion */
+        setMsg("No se pudo cargar los temporizadores (" + e.message + ").");
       }
     }
 
     async function post(body) {
       try {
-        await fetch("/temporizadores", {
+        const r = await fetch("/temporizadores", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify(body),
         });
+        if (!r.ok) throw new Error("HTTP " + r.status);
+        setMsg("");
       } catch (e) {
-        /* ignore */
+        setMsg("No se pudo iniciar el temporizador (" + e.message + ").");
       }
       await cargar();
     }
@@ -242,11 +257,13 @@
       if (!b) return;
       b.disabled = true;
       try {
-        await fetch(`/temporizadores/${b.dataset.id}/${b.dataset.act}`, {
+        const r = await fetch(`/temporizadores/${b.dataset.id}/${b.dataset.act}`, {
           method: "POST",
         });
+        if (!r.ok) throw new Error("HTTP " + r.status);
+        setMsg("");
       } catch (err) {
-        /* ignore */
+        setMsg(`No se pudo ${b.dataset.act} el temporizador (${err.message}).`);
       }
       await cargar();
     });

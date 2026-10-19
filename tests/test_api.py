@@ -82,3 +82,29 @@ def test_avatar_say_con_wav(client):
     r = client.post("/avatar/say", json={"texto": "hola", "wav_b64": "AAAA"})
     assert r.status_code == 200
     assert r.json()["ok"] is False
+
+
+def test_temporizadores_con_wav_serializa(client):
+    """Con aviso_wav (bytes no-UTF8) no debe romper la serializacion JSON (bug 500)."""
+    from src.tools import timers
+
+    tid = client.post(
+        "/temporizadores", json={"tipo": "temporizador", "minutos": 10}
+    ).json()["id"]
+    # simular la pre-sintesis: WAV con bytes invalidos en UTF-8
+    conn = timers._conn()
+    conn.execute(
+        "UPDATE timers SET aviso_wav = ? WHERE id = ?", (b"\xff\xfe\x00\xa7", tid)
+    )
+    conn.commit()
+    conn.close()
+
+    r = client.get("/temporizadores")
+    assert r.status_code == 200
+    t = r.json()["temporizadores"][0]
+    assert t["id"] == tid
+    assert "aviso_wav" not in t  # el BLOB no debe filtrarse
+
+    r2 = client.post(f"/temporizadores/{tid}/pausar")
+    assert r2.status_code == 200
+    assert r2.json()["estado"] == "pausado"

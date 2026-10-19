@@ -66,7 +66,10 @@ def _conn() -> sqlite3.Connection:
 
 
 def _row(row: sqlite3.Row) -> dict:
-    return dict(row)
+    d = dict(row)
+    # No exponer el WAV (BLOB) en las respuestas JSON: se lee solo con aviso().
+    d.pop("aviso_wav", None)
+    return d
 
 
 def _cfg() -> dict:

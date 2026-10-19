@@ -77,7 +77,7 @@ avatar/              # app Live2D + overlay Electron (Fase 7)
   electron/          #   ventana overlay transparente y click-through
   setup_assets.ps1   #   descarga librerias + modelos Haru/Wanko (no versionados)
 start*.ps1           # lanzadores (venv + modos + start-all + auth)
-tests/               # 314 tests (pytest)
+tests/               # 315 tests (pytest)
 ```
 
 ## Herramientas del agente (27)
@@ -123,7 +123,9 @@ iniciar/pausar/reanudar/detener y tiempos de trabajo/descanso. Se abre con el bo
 azul trabajo, verde descanso, ambar pausado) y tambien en la **web** (`web/index.html`,
 panel ⏱). Endpoints: `GET/POST /temporizadores`,
 `POST /temporizadores/{id}/{pausar|reanudar|cancelar}`, `POST /avatar/say`.
-Config en `settings.yaml` (`pomodoro`).
+Config en `settings.yaml` (`pomodoro`). Nota: `aviso_wav` (BLOB) **no** se expone en
+las respuestas JSON (`timers._row` lo excluye) para no romper la serializacion; se lee
+solo con `timers.aviso()`.
 
 Regla: las de **lectura** se ejecutan al instante; las de **escritura** piden
 confirmacion ("si/no"). Las tools de notas/listas estan **agrupadas** (un grupo de
