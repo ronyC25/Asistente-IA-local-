@@ -567,7 +567,8 @@ def build_tools() -> list[dict]:
                 "Lista los eventos del calendario. Por defecto muestra los proximos "
                 "desde ahora; cada evento incluye 'faltan' (tiempo restante, ya "
                 "calculado). Para rangos relativos usa 'periodo'; para 'el mas proximo' "
-                "usa limite=1; para 'el mas antiguo' usa orden='antiguos'."
+                "usa limite=1; para 'el mas antiguo/primero' usa orden='antiguos'. "
+                "Para 'el ultimo' NO uses orden='antiguos' (eso devuelve el mas viejo)."
             ),
             "parameters": {
                 "type": "object",

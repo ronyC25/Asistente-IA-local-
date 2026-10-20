@@ -90,10 +90,23 @@ def test_listar_periodo_manana():
     assert r["eventos"][0]["titulo"] == "Manana"
 
 
-def test_listar_periodo_proximos_dias():
-    hoy = datetime.now().replace(hour=23, minute=0, second=0, microsecond=0)
-    calendar.crear_evento("HoyTarde", hoy.isoformat())
-    calendar.crear_evento("En5dias", (hoy + timedelta(days=5)).isoformat())
+def _con_ahora(monkeypatch, ahora):
+    import src.timeutil as timeutil
+
+    class _FakeDatetime(datetime):
+        @classmethod
+        def now(cls, tz=None):
+            return ahora
+
+    monkeypatch.setattr(calendar, "datetime", _FakeDatetime)
+    monkeypatch.setattr(timeutil, "datetime", _FakeDatetime)
+
+
+def test_listar_periodo_proximos_dias(monkeypatch):
+    ahora = datetime(2026, 10, 19, 12, 0, 0)
+    _con_ahora(monkeypatch, ahora)
+    calendar.crear_evento("HoyTarde", (ahora + timedelta(hours=2)).isoformat())
+    calendar.crear_evento("En5dias", (ahora + timedelta(days=5)).isoformat())
     r = calendar.listar_eventos(periodo="proximos_dias", dias=3)
     assert r["total"] == 1
     assert r["eventos"][0]["titulo"] == "HoyTarde"
@@ -142,9 +155,11 @@ def test_etiquetas_y_filtro():
     assert calendar.listar_eventos(etiqueta="otra")["total"] == 0
 
 
-def test_resolver_evento():
-    pasado = (datetime.now() - timedelta(hours=1)).isoformat(timespec="minutes")
-    futuro = (datetime.now() + timedelta(days=2)).isoformat(timespec="minutes")
+def test_resolver_evento(monkeypatch):
+    ahora = datetime(2026, 10, 19, 12, 0, 0)
+    _con_ahora(monkeypatch, ahora)
+    pasado = (ahora - timedelta(hours=1)).isoformat(timespec="minutes")
+    futuro = (ahora + timedelta(days=2)).isoformat(timespec="minutes")
     e_ant = calendar.crear_evento("Antiguo", "2020-01-01T10:00")
     e_pas = calendar.crear_evento("Pasado hoy", pasado)
     e_fut = calendar.crear_evento("Futuro", futuro)
@@ -163,11 +178,11 @@ def test_cancelar_evento_por_titulo():
     assert c["estado"] == "cancelado"
 
 
-def test_periodo_excluye_pasados():
-    pasado = (datetime.now() - timedelta(hours=2)).isoformat(timespec="minutes")
-    futuro = (datetime.now() + timedelta(hours=2)).isoformat(timespec="minutes")
-    calendar.crear_evento("Pasado", pasado)
-    calendar.crear_evento("Futuro", futuro)
+def test_periodo_excluye_pasados(monkeypatch):
+    ahora = datetime(2026, 10, 19, 12, 0, 0)
+    _con_ahora(monkeypatch, ahora)
+    calendar.crear_evento("Pasado", (ahora - timedelta(hours=2)).isoformat())
+    calendar.crear_evento("Futuro", (ahora + timedelta(hours=2)).isoformat())
     r = calendar.listar_eventos(periodo="hoy")
     titulos = {e["titulo"] for e in r["eventos"]}
     assert "Futuro" in titulos

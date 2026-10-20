@@ -61,6 +61,7 @@ let micStream, micSource, micProc;
 let micEnabled = true;
 let state = "idle";
 let started = false;
+const audioSources = new Set();
 
 function fail(step, err) {
   const name = err && err.name ? err.name + ": " : "";
@@ -247,9 +248,22 @@ async function playWav(arrayBuffer) {
     src.buffer = buf;
     src.connect(audioCtx.destination);
     if (lipsyncNode) src.connect(lipsyncNode);
+    audioSources.add(src);
+    src.onended = () => audioSources.delete(src);
     src.start();
   } catch (e) {
     console.error("playWav", e);
+  }
+}
+
+function stopSpeaking() {
+  for (const src of [...audioSources]) {
+    try {
+      src.stop();
+    } catch (_) {
+      /* ya termino */
+    }
+    audioSources.delete(src);
   }
 }
 
@@ -259,8 +273,8 @@ async function startMic() {
     throw new Error("getUserMedia no disponible (contexto no seguro)");
   }
   const intentos = [
-    { audio: true },
     {
+      // Primero con cancelacion de eco: evita que el micro capte la voz del avatar.
       audio: {
         echoCancellation: true,
         noiseSuppression: true,
@@ -268,6 +282,7 @@ async function startMic() {
         channelCount: 1,
       },
     },
+    { audio: true },
   ];
   let lastErr = null;
   for (const c of intentos) {
@@ -290,7 +305,9 @@ async function startMic() {
   mute.connect(audioCtx.destination);
   micProc.onaudioprocess = (e) => {
     if (!micEnabled || !wsReady) return;
-    if (state === "speaking" || state === "thinking") return; // half-duplex
+    // Barge-in: durante "speaking" el micro sigue activo para detectar la wake
+    // word; el servidor es quien corta el audio. Solo se pausa al pensar.
+    if (state === "thinking") return;
     const input = e.inputBuffer.getChannelData(0);
     ws.send(floatToInt16(downsample(input, audioCtx.sampleRate, 16000)));
   };
@@ -367,6 +384,9 @@ function handleMessage(msg) {
     case "expression":
       setExpression(msg.value);
       break;
+    case "stop_speaking":
+      stopSpeaking();
+      break;
     case "pending":
       confirmBox.style.display = msg.active ? "flex" : "none";
       break;
@@ -389,6 +409,7 @@ function escapeHtml(s) {
 
 function sendText(text) {
   if (!text.trim() || !wsReady) return;
+  stopSpeaking();
   ws.send(JSON.stringify({ type: "text", text }));
   input.value = "";
 }

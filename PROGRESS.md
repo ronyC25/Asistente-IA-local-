@@ -50,6 +50,8 @@ src/
     registry.py      # registro de tools (read/write)
     confirm.py       # clasificacion si/no + deteccion de intencion
     capabilities.py  # lista de capacidades (respuesta determinista, sin LLM)
+    tooltext.py      # recupera tool-calls escritas como texto (JSON/tags)
+    voice_guard.py   # filtro anti-eco del microfono (voz/avatar)
   tools/
     tasks.py         # tareas (CRUD)
     reminders.py     # recordatorios (CRUD + recurrencia)
@@ -77,7 +79,7 @@ avatar/              # app Live2D + overlay Electron (Fase 7)
   electron/          #   ventana overlay transparente y click-through
   setup_assets.ps1   #   descarga librerias + modelos Haru/Wanko (no versionados)
 start*.ps1           # lanzadores (venv + modos + start-all + auth)
-tests/               # 346 tests (pytest)
+tests/               # 382 tests (pytest)
 ```
 
 ## Herramientas del agente (27)
@@ -332,6 +334,28 @@ aplicacion** (requiere verificacion en 2 pasos).
   a partir del registro de tools, **sin pasar por el LLM**) → completa y sin truncar
   (evita el tope de `num_predict`). Tampoco disparan el "nudge" de lectura. El comando
   `/ayuda` esta tambien en Telegram y en la CLI, y hay boton *Ayuda* en la web.
+- **Nombre exacto del evento**: "¿cual es el nombre completo del ultimo evento?",
+  "el primero", "el proximo", "cuando es..." se resuelven **deterministicamente**
+  (sin LLM) con `confirm.pregunta_nombre_evento` + `agent._describir_evento_solicitado`.
+  Usa el ultimo listado (`session.ultimos_eventos`, que ahora guarda el `titulo`), el
+  periodo si se indica, o el pasado mas reciente; devuelve el **titulo literal** (el
+  modelo lo parafraseaba, p. ej. "topicos" -> "temas").
+- **Tool-calls escritas como texto**: algunos modelos devuelven
+  `{"name": "...", "arguments": {...}}` en el contenido. `src/brain/tooltext.py` las
+  detecta y `agent._run_loop` las **convierte en llamadas reales** (las lecturas se
+  ejecutan; las escrituras siguen pidiendo confirmacion). Si al final queda texto con
+  pinta de codigo, se sustituye por una peticion de aclaracion (nunca se muestra/habla).
+- **Barge-in y anti-eco (avatar/voz)**: al detectar la wake word durante la
+  reproduccion, el backend envia `stop_speaking` y el avatar corta el audio al instante
+  (`avatar/main.js`). Se prioriza `echoCancellation` en el micro y
+  `src/brain/voice_guard.py` ignora transcripciones que son un eco del ultimo audio
+  (evita que el modelo se confunda y responda JSON). Escribir mientras habla tambien
+  corta la reproduccion.
+- **Consultas limpias**: se descartan bloques `<think>` (aunque `think=False`, qwen3 a
+  veces los filtra) y, si tras una lectura el modelo devuelve solo razonamiento o algo
+  vacio, se pide un resumen **sin herramientas** con los datos ya leidos. Ademas, una
+  consulta pura (`que listas tengo`) ya **no propone escrituras** que el modelo inventa
+  al leer (se ejecuta la lectura y se resume).
 - **Notas/listas/eventos**: `consultar_notas` filtra por `periodo`/`dias`/`desde`/
   `hasta` y `orden` (recientes/antiguas); `gestionar_listas(accion='crear', items=[...])`
   crea la lista **con sus elementos en una sola llamada** y `consultar_listas('listar')`

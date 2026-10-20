@@ -6,6 +6,7 @@ import logging
 import numpy as np
 
 from ..config import settings
+from ..brain.voice_guard import parece_eco
 from . import stt, tts
 from .wake import WakeWord
 
@@ -75,6 +76,7 @@ def run(agent, debug: bool = False) -> None:
     print("Cargando componentes de voz...")
     ww = WakeWord()
     session = agent.new_session()
+    ultima: str | None = None
 
     print(f"Di '{ww.name.replace('_', ' ')}' para activarme. Di 'salir' para terminar.")
     if debug:
@@ -123,6 +125,9 @@ def run(agent, debug: bool = False) -> None:
                 if not texto:
                     print("[no entendi nada]")
                     continue
+                if ultima and parece_eco(texto, ultima):
+                    print("[ignorado: posible eco del asistente]")
+                    continue
 
                 print(f"Tu > {texto}")
                 if texto.lower().strip(" .!?") in _SALIR:
@@ -130,6 +135,7 @@ def run(agent, debug: bool = False) -> None:
                     break
 
                 respuesta, _pending = agent.handle(session, texto)
+                ultima = respuesta
                 print(f"{nombre} > {respuesta}\n")
                 tts.hablar(respuesta)
     except KeyboardInterrupt:

@@ -21,6 +21,7 @@ from src.brain.confirm import (
     periodo_de_texto,
     pregunta_capacidades,
     pregunta_cuanto_falta,
+    pregunta_nombre_evento,
     quiere_eventos_pasados,
     quiere_historial_recordatorios,
     quiere_proximo,
@@ -391,3 +392,24 @@ def test_quiere_eventos_pasados(text, esperado):
 )
 def test_estado_tareas_de_texto(text, esperado):
     assert estado_tareas_de_texto(text) == esperado
+
+
+@pytest.mark.parametrize(
+    "text,esperado",
+    [
+        ("dame el nombre completo del ultimo evento", True),
+        ("cual es el ultimo evento", True),
+        ("cuando es el proximo evento", True),
+        ("dame el nombre del evento", True),
+        ("dame el primer evento", True),
+        ("dame el proximo evento", True),
+        ("que evento hay manana", False),
+        ("dame los eventos de esta semana", False),
+        ("cuales son los eventos de esta semana", False),
+        ("cuanto falta para el ultimo evento", False),
+        ("cancela el ultimo evento", False),
+        ("edita el ultimo evento", False),
+    ],
+)
+def test_pregunta_nombre_evento(text, esperado):
+    assert pregunta_nombre_evento(text) is esperado

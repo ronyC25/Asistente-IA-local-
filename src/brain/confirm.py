@@ -89,6 +89,56 @@ _ACTION_VERBS = {
     "exporta",
     "avisame",
     "avisa",
+    "crear",
+    "creas",
+    "agregar",
+    "agregas",
+    "enviar",
+    "envias",
+    "mandar",
+    "mandas",
+    "programar",
+    "programas",
+    "agendar",
+    "agendas",
+    "eliminar",
+    "eliminas",
+    "borrar",
+    "borras",
+    "editar",
+    "editas",
+    "cambiar",
+    "cambias",
+    "cancelar",
+    "cancelas",
+    "completar",
+    "completas",
+    "marcar",
+    "marcas",
+    "responder",
+    "respondes",
+    "escribir",
+    "escribes",
+    "anadir",
+    "anades",
+    "exportar",
+    "exportas",
+    "avisar",
+    "avisas",
+    "recordar",
+    "recuerdas",
+    "quitar",
+    "quitas",
+    "poner",
+    "pones",
+    "iniciar",
+    "inicias",
+    "pausar",
+    "pausas",
+    "reanudar",
+    "reanudas",
+    "detener",
+    "detienes",
 }
 
 
@@ -519,9 +569,46 @@ def referencia_evento(text: str) -> str | None:
         return "ultimo_pasado"
     if palabras & {"proximo", "proxima", "siguiente"}:
         return "proximo"
-    if palabras & {"antiguo", "antigua", "primero", "primera", "viejo", "vieja"}:
+    if palabras & {"antiguo", "antigua", "primero", "primera", "primer", "viejo", "vieja"}:
         return "antiguo"
     return None
+
+
+_NOMBRE_EVENTO_RE = re.compile(r"\bevento\b")
+
+
+def pregunta_nombre_evento(text: str) -> bool:
+    """True si piden el nombre/fecha de UN evento concreto por referencia."""
+    t = _norm(text)
+    if not t or not _NOMBRE_EVENTO_RE.search(t):
+        return False
+    if pregunta_cuanto_falta(text) or looks_like_action(text):
+        return False
+    palabras = set(t.split())
+    refs = {
+        "ultimo",
+        "ultima",
+        "ultimos",
+        "ultimas",
+        "primero",
+        "primera",
+        "primer",
+        "antiguo",
+        "antigua",
+        "proximo",
+        "proxima",
+        "siguiente",
+    }
+    pide_nombre = bool(palabras & {"nombre", "nombres", "titulo", "titulos"}) or (
+        "como se llama" in t
+    )
+    if pide_nombre:
+        return True
+    pide_cual = any(
+        p in t
+        for p in ("cual es", "cual evento", "que evento", "cuando es", "que dia es")
+    ) or bool(palabras & {"dame", "dime", "muestrame", "muestra"})
+    return pide_cual and bool(palabras & refs)
 
 
 _REF_OBJETO_RE = re.compile(r"\b(?:cancel|borr|elimin|anul|quit|remov)\w*(?:lo|la|los|las)\b")

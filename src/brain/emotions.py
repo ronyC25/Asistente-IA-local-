@@ -3,7 +3,7 @@ from __future__ import annotations
 
 import re
 
-from .textfmt import strip_markdown
+from .textfmt import strip_markdown, strip_think
 
 # Emociones validas (se mapean a expresiones del avatar en el frontend).
 EMOCIONES = {
@@ -51,5 +51,5 @@ def limpiar_respuesta(text: str) -> tuple[str, list[str]]:
     Es lo que deben usar los consumidores (CLI, web, avatar, Telegram) para
     mostrar/hablar la respuesta sin asteriscos ni formato.
     """
-    limpio, emociones = strip_emotions(text)
+    limpio, emociones = strip_emotions(strip_think(text))
     return strip_markdown(limpio), emociones

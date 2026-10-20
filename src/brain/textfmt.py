@@ -15,6 +15,17 @@ _STRIKE = re.compile(r"~~(.+?)~~")
 _HEADER = re.compile(r"^\s{0,3}#{1,6}\s*", re.MULTILINE)
 _BULLET = re.compile(r"^\s*[*+-]\s+", re.MULTILINE)
 _EMPHASIS = re.compile(r"(\*\*\*|\*\*|\*|__)(?=\S)(.+?)(?<=\S)\1")
+_THINK = re.compile(r"<think\b[^>]*>.*?</think>", re.DOTALL | re.IGNORECASE)
+_THINK_OPEN = re.compile(r"<think\b[^>]*>.*", re.DOTALL | re.IGNORECASE)
+
+
+def strip_think(text: str) -> str:
+    """Quita bloques de razonamiento ``<think>...</think>`` que algunos modelos
+    filtran en el contenido (incluso con ``think=False``)."""
+    t = _THINK.sub("", text or "")
+    # Bloque sin cerrar (respuesta truncada): descartamos el razonamiento.
+    t = _THINK_OPEN.sub("", t)
+    return t.strip()
 
 
 def strip_markdown(text: str) -> str:

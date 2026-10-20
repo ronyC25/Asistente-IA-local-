@@ -5,11 +5,13 @@ from __future__ import annotations
 import asyncio
 import json
 import logging
+import time
 
 import numpy as np
 from fastapi import WebSocket, WebSocketDisconnect
 
 from .brain.emotions import limpiar_respuesta
+from .brain.voice_guard import parece_eco
 from .config import settings
 from .factory import build_agent
 from .voice import stt, tts
@@ -29,6 +31,22 @@ _agent = None
 _CLIENTES: set = set()
 _LOOP = None
 
+# Ultima frase reproducida (texto, momento) para el filtro anti-eco global.
+_ULTIMA_VOZ: tuple[str, float] | None = None
+
+
+def _marcar_voz(texto: str) -> None:
+    global _ULTIMA_VOZ
+    _ULTIMA_VOZ = (texto or "", time.monotonic())
+
+
+def _es_eco(texto: str, ultima: str | None) -> bool:
+    if ultima and parece_eco(texto, ultima):
+        return True
+    if _ULTIMA_VOZ and (time.monotonic() - _ULTIMA_VOZ[1]) < 20:
+        return parece_eco(texto, _ULTIMA_VOZ[0])
+    return False
+
 
 def notificar_avatar(texto: str, wav: bytes | None = None) -> bool:
     """Hace hablar a los avatares conectados. True si habia alguno.
@@ -47,6 +65,7 @@ def notificar_avatar(texto: str, wav: bytes | None = None) -> bool:
 
 
 async def _hablar_en_avatares(texto: str, wav: bytes | None = None) -> None:
+    _marcar_voz(texto)
     # Primero el texto (asi el avatar lo muestra aunque falle el TTS)...
     for ws in list(_CLIENTES):
         try:
@@ -108,14 +127,17 @@ async def handle_ws(ws: WebSocket) -> None:
     leftover = np.zeros(0, dtype="int16")
     rec: dict | None = None
     busy = False
+    ultima_respuesta: str | None = None
 
     async def process_text(texto: str) -> None:
-        nonlocal busy
+        nonlocal busy, ultima_respuesta
         busy = True
         try:
             await ws.send_json({"type": "state", "value": "thinking"})
             reply, pending = await asyncio.to_thread(agent.handle, session, texto)
             limpio, emociones = limpiar_respuesta(reply)
+            ultima_respuesta = limpio
+            _marcar_voz(limpio)
             if emociones:
                 await ws.send_json({"type": "expression", "value": emociones[-1]})
             await ws.send_json({"type": "reply", "text": limpio})
@@ -151,6 +173,8 @@ async def handle_ws(ws: WebSocket) -> None:
                     if rec is None:
                         if wake.detectado(frame):
                             wake.reset()
+                            # Barge-in: si el avatar estaba hablando, que se calle.
+                            await ws.send_json({"type": "stop_speaking"})
                             rec = {
                                 "frames": [],
                                 "silence": 0,
@@ -181,6 +205,10 @@ async def handle_ws(ws: WebSocket) -> None:
                             stt.transcribir, audio, SAMPLE_RATE
                         )
                         if not texto:
+                            await ws.send_json({"type": "state", "value": "idle"})
+                            continue
+                        if _es_eco(texto, ultima_respuesta):
+                            log.info("ignoro posible eco del avatar: %r", texto)
                             await ws.send_json({"type": "state", "value": "idle"})
                             continue
                         await ws.send_json({"type": "you", "text": texto})

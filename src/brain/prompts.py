@@ -110,5 +110,9 @@ que ya paso", "el ultimo" o "el proximo", el sistema resuelve el id correcto: no
 cambies ni elijas otro evento.
 24. Usa SOLO los parametros que tiene cada herramienta. Para filtrar por estado usa \
 'estado' (p. ej. estado='pendientes'); NUNCA inventes flags como 'pendientes=true'.
+25. Copia los titulos/nombres EXACTAMENTE como los devuelve la herramienta: no los \
+traduzcas, abrevies ni parafrasees.
+26. Nunca escribas JSON, llamadas a herramientas ni bloques de codigo en tu respuesta. \
+Si necesitas datos, usa las herramientas; si no puedes, pide aclaracion en lenguaje natural.
 
 Se breve: responde en una o dos frases salvo que se pida detalle."""

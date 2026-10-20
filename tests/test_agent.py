@@ -629,3 +629,199 @@ def test_ajustar_args_inyecta_tareas_completadas():
     agent = Agent(_registry(), model="dummy", system_prompt="sys")
     out = agent._ajustar_args([], "que tareas complete")
     assert dict(out).get("listar_tareas", {}).get("estado") == "completadas"
+
+def test_handle_nombre_ultimo_evento_desde_listado(tmp_path, monkeypatch):
+    from datetime import datetime, timedelta
+
+    from src import config
+    from src.tools import calendar
+
+    monkeypatch.setattr(config.settings, "database", str(tmp_path / "t.db"))
+    monkeypatch.setattr(
+        config.settings,
+        "google_calendar",
+        dict(config.settings.google_calendar, enabled=False),
+    )
+    calendar._conn().close()
+    primero = calendar.crear_evento(
+        "Primero", (datetime.now() + timedelta(days=1)).isoformat(timespec="minutes")
+    )
+    ultimo = calendar.crear_evento(
+        "Examen Parcial topicos",
+        (datetime.now() + timedelta(days=3)).isoformat(timespec="minutes"),
+    )
+    agent = Agent(_registry(), model="dummy", system_prompt="sys")
+    agent.client = _NoCallClient()
+    s = agent.new_session()
+    s.ultimos_eventos = [
+        {"id": primero["id"], "titulo": primero["titulo"], "inicio": primero["inicio"]},
+        {"id": ultimo["id"], "titulo": ultimo["titulo"], "inicio": ultimo["inicio"]},
+    ]
+    reply, info = agent.handle(s, "dame el nombre completo del ultimo evento")
+    assert info is None
+    assert "Examen Parcial topicos" in reply
+    assert "Primero" not in reply
+    assert agent.client.called is False
+
+
+def test_handle_nombre_ultimo_evento_de_esta_semana(monkeypatch):
+    from src.tools import calendar
+
+    eventos = [
+        {"id": 2, "titulo": "Segundo", "inicio": "2026-10-20T10:00:00"},
+        {"id": 3, "titulo": "Ultimo exacto", "inicio": "2026-10-23T16:40:00"},
+    ]
+    monkeypatch.setattr(
+        calendar, "listar_eventos", lambda **kw: {"total": 2, "eventos": eventos}
+    )
+    agent = Agent(_registry(), model="dummy", system_prompt="sys")
+    agent.client = _NoCallClient()
+    s = agent.new_session()
+    reply, info = agent.handle(s, "dame el nombre del ultimo evento de esta semana")
+    assert info is None
+    assert "Ultimo exacto" in reply
+    assert agent.client.called is False
+
+
+def test_run_loop_recupera_tool_call_escrita():
+    responses = [
+        {
+            "message": {
+                "role": "assistant",
+                "content": '{"name": "listar_tareas", "arguments": {"estado": "pendientes"}}',
+            }
+        },
+        {"message": {"role": "assistant", "content": "Tienes 2 tareas pendientes."}},
+    ]
+    agent = Agent(_registry(), model="dummy", system_prompt="sys")
+    agent.client = _ScriptClient(responses)
+    calls = []
+
+    def fake_execute(name, args):
+        calls.append((name, args))
+        return {"ok": True, "resultado": {"total": 2, "tareas": []}}
+
+    agent._execute = fake_execute
+    s = agent.new_session()
+    reply, info = agent.handle(s, "dame las tareas pendientes")
+    assert reply == "Tienes 2 tareas pendientes."
+    assert calls == [("listar_tareas", {"estado": "pendientes"})]
+    assert "arguments" not in reply
+
+
+def test_run_loop_tool_call_textual_de_escritura_pide_confirmacion():
+    responses = [
+        {
+            "message": {
+                "role": "assistant",
+                "content": '{"name": "crear_tarea", "arguments": {"titulo": "Comprar pan"}}',
+            }
+        }
+    ]
+    agent = Agent(_registry(), model="dummy", system_prompt="sys")
+    agent.client = _ScriptClient(responses)
+    s = agent.new_session()
+    reply, info = agent.handle(s, "crea una tarea para comprar pan")
+    assert info == {"type": "confirm"}
+    assert s.pending == [("crear_tarea", {"titulo": "Comprar pan"})]
+
+
+def test_run_loop_no_devuelve_codigo():
+    responses = [
+        {
+            "message": {
+                "role": "assistant",
+                "content": '{"name": "inventada", "arguments": {"x": 1}}',
+            }
+        }
+    ]
+    agent = Agent(_registry(), model="dummy", system_prompt="sys")
+    agent.client = _ScriptClient(responses)
+    s = agent.new_session()
+    reply, info = agent.handle(s, "hola")
+    assert info is None
+    assert "arguments" not in reply
+    assert '"name"' not in reply
+
+
+def test_listar_eventos_guarda_titulo_en_sesion():
+    responses = [
+        {
+            "message": {
+                "role": "assistant",
+                "content": "",
+                "tool_calls": [
+                    {
+                        "function": {
+                            "name": "listar_eventos",
+                            "arguments": {"periodo": "esta_semana"},
+                        }
+                    }
+                ],
+            }
+        },
+        {"message": {"role": "assistant", "content": "ok"}},
+    ]
+    agent = Agent(_registry(), model="dummy", system_prompt="sys")
+    agent.client = _ScriptClient(responses)
+    agent._execute = lambda name, args: {
+        "ok": True,
+        "resultado": {
+            "eventos": [
+                {"id": 1, "titulo": "Exacto", "inicio": "2026-10-23T16:40:00"}
+            ]
+        },
+    }
+    s = agent.new_session()
+    agent.handle(s, "eventos de esta semana")
+    assert s.ultimos_eventos[0]["titulo"] == "Exacto"
+
+def test_consulta_no_propone_escritura():
+    responses = [
+        {
+            "message": {
+                "role": "assistant",
+                "content": "",
+                "tool_calls": [
+                    {
+                        "function": {
+                            "name": "consultar_listas",
+                            "arguments": {"accion": "listar"},
+                        }
+                    },
+                    {
+                        "function": {
+                            "name": "gestionar_listas",
+                            "arguments": {
+                                "accion": "agregar",
+                                "nombre": "Tren de Oti",
+                                "texto": "Pelcho",
+                            },
+                        }
+                    },
+                ],
+            }
+        },
+        {"message": {"role": "assistant", "content": "Tienes 2 listas."}},
+    ]
+    agent = Agent(_registry(), model="dummy", system_prompt="sys")
+    agent.client = _ScriptClient(responses)
+    agent._execute = lambda name, args: {"ok": True, "resultado": {"listas": []}}
+    s = agent.new_session()
+    reply, info = agent.handle(s, "que listas tengo")
+    assert info is None
+    assert s.pending is None
+    assert reply == "Tienes 2 listas."
+
+def test_run_loop_ignora_think_y_reintenta():
+    responses = [
+        {"message": {"role": "assistant", "content": "<think>razonando</think>"}},
+        {"message": {"role": "assistant", "content": "Hola, ¿en qué ayudo?"}},
+    ]
+    agent = Agent(_registry(), model="dummy", system_prompt="sys")
+    agent.client = _ScriptClient(responses)
+    s = agent.new_session()
+    reply, info = agent.handle(s, "hola")
+    assert info is None
+    assert reply == "Hola, ¿en qué ayudo?"
+    assert "think" not in reply

@@ -28,6 +28,7 @@ from .confirm import (
     periodo_de_texto,
     pregunta_capacidades,
     pregunta_cuanto_falta,
+    pregunta_nombre_evento,
     quiere_historial_recordatorios,
     quiere_proximo,
     quiere_eventos_pasados,
@@ -35,6 +36,8 @@ from .confirm import (
     referencia_evento,
 )
 from .registry import Registry
+from .textfmt import strip_think
+from .tooltext import extraer_llamadas, parece_llamada
 
 
 class Session:
@@ -214,6 +217,7 @@ class Agent:
         self.keep_alive = keep_alive
         self.history_limit = history_limit
         self.client = ollama.Client(host=host) if host else ollama.Client()
+        self._tool_names = set(registry.names())
 
     def new_session(self) -> Session:
         return Session(self.system_prompt)
@@ -473,6 +477,15 @@ class Agent:
                     {"type": "confirm"},
                 )
 
+        # "¿Cuál es el nombre completo del último evento?" -> respuesta exacta y
+        # determinista. El modelo parafraseaba el título y elegía el más viejo.
+        if pregunta_nombre_evento(user_text):
+            respuesta = self._describir_evento_solicitado(session, user_text)
+            if respuesta:
+                session.messages.append({"role": "user", "content": user_text})
+                session.messages.append({"role": "assistant", "content": respuesta})
+                return respuesta, None
+
         self._trim(session)
         session.messages.append({"role": "user", "content": user_text})
         return self._run_loop(session, user_text=user_text)
@@ -518,6 +531,96 @@ class Agent:
         session.messages.append({"role": "assistant", "content": msg})
         return msg
 
+    def _describir_evento_solicitado(
+        self, session: Session, user_text: str
+    ) -> str | None:
+        """Resuelve en codigo el evento pedido y devuelve su titulo EXACTO."""
+        from ..tools import calendar
+
+        ref = referencia_evento(user_text)
+        periodo = periodo_de_texto(user_text)
+        if periodo:
+            p, n = periodo
+            try:
+                res = calendar.listar_eventos(
+                    periodo=p,
+                    dias=n,
+                    pasados=ref != "proximo",
+                    limite=100,
+                )
+            except ValueError:
+                return None
+            eventos = res.get("eventos") or []
+            if not eventos:
+                etiqueta = str(p).replace("_", " ")
+                return f"No encontre eventos en ese periodo ({etiqueta})."
+            if ref in ("antiguo", "proximo"):
+                ev = min(eventos, key=lambda e: e.get("inicio") or "")
+            else:
+                ev = max(eventos, key=lambda e: e.get("inicio") or "")
+            session.ultimos_eventos = [
+                {
+                    "id": e.get("id"),
+                    "titulo": e.get("titulo"),
+                    "inicio": e.get("inicio"),
+                }
+                for e in eventos
+            ]
+            return self._texto_evento(ev, ref)
+
+        if session.ultimos_eventos:
+            candidatos = session.ultimos_eventos
+            if ref == "antiguo":
+                elegido = min(candidatos, key=lambda e: e.get("inicio") or "")
+            elif ref == "proximo":
+                ahora = datetime.now()
+                futuros = [
+                    e
+                    for e in candidatos
+                    if e.get("inicio")
+                    and datetime.fromisoformat(e["inicio"]) >= ahora
+                ]
+                if not futuros:
+                    ev = calendar.resolver_evento("proximo")
+                    if not ev:
+                        return "No hay proximos eventos."
+                    return self._texto_evento(ev, "proximo")
+                elegido = min(futuros, key=lambda e: e.get("inicio") or "")
+            else:
+                elegido = max(candidatos, key=lambda e: e.get("inicio") or "")
+            ev = (
+                calendar.obtener_evento(elegido["id"])
+                if elegido.get("id") is not None
+                else None
+            ) or elegido
+        else:
+            ev = calendar.resolver_evento(ref or "ultimo_pasado")
+
+        if not ev:
+            return "No encontre ningun evento para esa referencia."
+        return self._texto_evento(ev, ref)
+
+    @staticmethod
+    def _texto_evento(ev: dict, ref: str | None = None) -> str:
+        titulo = ev.get("titulo") or "(sin titulo)"
+        inicio = ev.get("inicio")
+        cuando = ""
+        if inicio:
+            try:
+                dt = datetime.fromisoformat(str(inicio))
+                cuando = f" ({dt.strftime('%d/%m/%Y %H:%M')})"
+            except (ValueError, TypeError):
+                cuando = f" ({inicio})"
+        if ref == "antiguo":
+            prefijo = "El primer evento"
+        elif ref == "proximo":
+            prefijo = "El proximo evento"
+        elif ref:
+            prefijo = "El ultimo evento"
+        else:
+            prefijo = "El evento"
+        return f'{prefijo} es "{titulo}"{cuando}.'
+
     _NUDGE = (
         "IMPORTANTE: SI tienes la capacidad de enviar por Telegram/email y de crear, "
         "agendar, editar, cancelar o exportar mediante herramientas. El usuario pidio "
@@ -555,8 +658,24 @@ class Agent:
             message = response.get("message", {}) or {}
             tool_calls = message.get("tool_calls") or []
 
+            # El modelo a veces escribe la llamada como texto (JSON). La
+            # recuperamos y seguimos el flujo normal (lecturas/escrituras).
             if not tool_calls:
-                content = message.get("content") or ""
+                content = strip_think(message.get("content") or "")
+                llamadas = extraer_llamadas(content, self._tool_names)
+                if llamadas:
+                    log.info(
+                        "recuperada llamada escrita como texto: %s",
+                        [n for n, _ in llamadas],
+                    )
+                    tool_calls = [
+                        {"function": {"name": nombre, "arguments": args}}
+                        for nombre, args in llamadas
+                    ]
+                    message = {"content": "", "tool_calls": tool_calls}
+
+            if not tool_calls:
+                content = strip_think(message.get("content") or "")
                 nudge: str | None = None
                 if user_text and stage < 2 and not es_meta:
                     if looks_like_action(user_text) and not saw_write:
@@ -605,24 +724,32 @@ class Agent:
                         return self._run_loop(
                             session, user_text=None, stage=stage + 1, think=False
                         )
-                # El modelo a veces devuelve contenido vacio (p. ej. tras una lectura
-                # grande): reintentamos una vez pidiendole el resumen.
+                # El modelo a veces devuelve contenido vacio o solo un bloque
+                # <think>: pedimos el resumen SIN herramientas (asi no inventa
+                # otras llamadas) y sin razonamiento.
                 if not content.strip() and retry_empty:
                     session.messages.append(
                         {
                             "role": "system",
                             "content": (
-                                "Resume en lenguaje natural la informacion de las "
-                                "herramientas anteriores. No devuelvas una respuesta vacia."
+                                "Responde al usuario en lenguaje natural usando SOLO "
+                                "los datos de las herramientas anteriores. No escribas "
+                                "<think> ni razonamiento y no llames mas herramientas."
                             ),
                         }
                     )
-                    return self._run_loop(
-                        session,
-                        user_text=None,
-                        stage=stage + 1,
-                        think=False,
-                        retry_empty=False,
+                    resp = self._call(session, think=False, with_tools=False)
+                    content = strip_think(
+                        (resp.get("message") or {}).get("content") or ""
+                    )
+                if not content.strip():
+                    content = (
+                        "No pude generar una respuesta. ¿Puedes repetir la pregunta?"
+                    )
+                if parece_llamada(content):
+                    content = (
+                        "No pude interpretar esa solicitud. ¿Puedes repetirla "
+                        "o expresarla de otra forma?"
                     )
                 session.messages.append({"role": "assistant", "content": content})
                 return content, None
@@ -633,14 +760,40 @@ class Agent:
                 for tc in tool_calls
             ]
             parsed = self._ajustar_args(parsed, user_text, session)
+            reads, writes = partition_calls(parsed, self.registry)
+
+            # Una CONSULTA pura no debe proponer escrituras: el modelo a veces
+            # "agrega" un dato que acaba de leer (p. ej. "que listas tengo").
+            if (
+                user_text
+                and looks_like_query(user_text)
+                and not looks_like_action(user_text)
+                and writes
+            ):
+                log.info(
+                    "ignoro escrituras en una consulta: %s",
+                    [n for n, _ in writes],
+                )
+                if not reads:
+                    dominio = dominio_lectura(user_text)
+                    if dominio:
+                        reads = [
+                            (
+                                _DOMINIO_TOOL[dominio],
+                                _args_dominio(dominio, user_text),
+                            )
+                        ]
+                writes = []
+                parsed = reads
+
             assistant_msg = {
                 "role": "assistant",
-                "content": message.get("content") or "",
-                "tool_calls": tool_calls,
+                "content": strip_think(message.get("content") or ""),
+                "tool_calls": [
+                    {"function": {"name": n, "arguments": a}} for n, a in parsed
+                ],
             }
             session.messages.append(assistant_msg)
-
-            reads, writes = partition_calls(parsed, self.registry)
 
             if writes and not reads:
                 saw_write = True
@@ -667,7 +820,16 @@ class Agent:
                     }
                 )
                 resp = self._call(session, think=False, with_tools=False)
-                content = (resp.get("message") or {}).get("content") or ""
+                content = strip_think((resp.get("message") or {}).get("content") or "")
+                if not content.strip():
+                    content = (
+                        "No pude generar una respuesta. ¿Puedes repetir la pregunta?"
+                    )
+                if parece_llamada(content):
+                    content = (
+                        "No pude interpretar esa solicitud. ¿Puedes repetirla "
+                        "o expresarla de otra forma?"
+                    )
                 session.messages.append({"role": "assistant", "content": content})
                 return content, None
 
@@ -682,7 +844,11 @@ class Agent:
                     evs = (result.get("resultado") or {}).get("eventos")
                     if isinstance(evs, list):
                         session.ultimos_eventos = [
-                            {"id": e.get("id"), "inicio": e.get("inicio")}
+                            {
+                                "id": e.get("id"),
+                                "titulo": e.get("titulo"),
+                                "inicio": e.get("inicio"),
+                            }
                             for e in evs
                         ]
                 session.messages.append(
