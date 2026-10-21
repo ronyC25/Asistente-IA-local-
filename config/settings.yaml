@@ -1,11 +1,24 @@
 # Configuracion del asistente.
 model: qwen3:8b
 temperature: 0.25
-num_ctx: 6144            # contexto (menor = menos VRAM)
+num_ctx: 8192            # contexto (prompt base ~6.5k tokens; 8192 entra 100% en GPU de 8 GB)
 num_predict: 400         # tope de tokens de salida por respuesta
 keep_alive: 30m          # mantiene el modelo en VRAM (evita recargas)
 history_limit: 16        # nº maximo de mensajes de historial por sesion
 max_tool_iters: 6
+
+# Memoria persistente (SQLite: sessions, messages, memories)
+memory:
+  enabled: true
+  summary_after: 30      # resumir cuando haya mas de N mensajes sin resumir
+  history_limit: 16      # mensajes recientes que se cargan al iniciar sesion
+  facts_limit: 20        # hechos globales inyectados al inicio
+  keep_messages: 500     # retencion aproximada por sesion (el resumen cubre lo antiguo)
+
+# Router de herramientas (reduce el prompt por turno)
+tools:
+  mode: auto             # auto = solo grupos del dominio; full = las 27 tools
+  fallback_full: true    # si el modelo no llama tool, reintentar con todas
 
 assistant_name: Jarvis
 language: es

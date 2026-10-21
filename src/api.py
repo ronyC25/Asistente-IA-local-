@@ -98,7 +98,7 @@ def chat(req: ChatRequest) -> ChatResponse:
     agent = get_agent()
     session = _sessions.get(req.session_id)
     if session is None:
-        session = agent.new_session()
+        session = agent.new_session(session_id=req.session_id, canal="web")
         _sessions[req.session_id] = session
     reply, pending = agent.handle(session, req.message)
     from .brain.emotions import limpiar_respuesta
@@ -110,6 +110,7 @@ def chat(req: ChatRequest) -> ChatResponse:
 @app.post("/session/{session_id}/reset")
 def reset(session_id: str) -> dict:
     _sessions.pop(session_id, None)
+    get_agent().reset_session(session_id)
     return {"reset": session_id}
 
 

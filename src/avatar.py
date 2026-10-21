@@ -120,7 +120,7 @@ async def handle_ws(ws: WebSocket) -> None:
         return
 
     agent = _get_agent()
-    session = agent.new_session()
+    session = agent.new_session(session_id="avatar", canal="avatar")
     await ws.send_json({"type": "ready", "wake": wake.name, "model": settings.avatar["model"]})
     await ws.send_json({"type": "state", "value": "idle"})
 

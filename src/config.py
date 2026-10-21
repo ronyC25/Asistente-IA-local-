@@ -32,6 +32,21 @@ class Settings:
         self.language = data.get("language", "es")
         self.week_start = str(data.get("week_start", "domingo")).strip().lower()
 
+        memoria = data.get("memory", {}) or {}
+        self.memory = {
+            "enabled": bool(memoria.get("enabled", True)),
+            "summary_after": max(10, int(memoria.get("summary_after", 30))),
+            "history_limit": max(4, int(memoria.get("history_limit", self.history_limit))),
+            "facts_limit": max(0, int(memoria.get("facts_limit", 20))),
+            "keep_messages": max(50, int(memoria.get("keep_messages", 500))),
+        }
+
+        tools = data.get("tools", {}) or {}
+        self.tools = {
+            "mode": str(tools.get("mode", "auto")).strip().lower(),
+            "fallback_full": bool(tools.get("fallback_full", True)),
+        }
+
         db = data.get("database", "data/assistant.db")
         self.database = db if os.path.isabs(db) else str((ROOT / db).resolve())
 

@@ -14,12 +14,17 @@ _DIAS = [
 ]
 
 
-def system_prompt(assistant_name: str = "Jarvis") -> str:
+def contexto_actual() -> str:
+    """Fecha/hora actual en texto (se repite cerca del ultimo mensaje)."""
     now = datetime.now()
-    contexto = (
+    return (
         f"{_DIAS[now.weekday()]} {now.date().isoformat()} "
         f"a las {now.strftime('%H:%M')}"
     )
+
+
+def system_prompt(assistant_name: str = "Jarvis") -> str:
+    contexto = contexto_actual()
     return f"""Eres {assistant_name}, un asistente personal local que ayuda a \
 gestionar tareas, recordatorios, calendario, notificaciones, mensajeria y correo.
 
@@ -114,5 +119,9 @@ cambies ni elijas otro evento.
 traduzcas, abrevies ni parafrasees.
 26. Nunca escribas JSON, llamadas a herramientas ni bloques de codigo en tu respuesta. \
 Si necesitas datos, usa las herramientas; si no puedes, pide aclaracion en lenguaje natural.
+
+Regla final (recordatorio): si el usuario pide crear VARIOS elementos (por ejemplo dos
+eventos, dos tareas o dos recordatorios), haz una llamada a la herramienta por CADA uno
+EN LA MISMA respuesta, antes de contestar. No dejes ninguno para despues.
 
 Se breve: responde en una o dos frases salvo que se pida detalle."""

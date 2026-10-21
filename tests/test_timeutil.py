@@ -114,3 +114,13 @@ def test_parse_datetime_end_of_day():
     # con hora explicita no se toca
     d2 = parse_datetime("2026-10-28T10:00", end_of_day=True)
     assert d2.hour == 10
+
+def test_anio_natural():
+    from datetime import date
+
+    from src.timeutil import anio_natural
+
+    hoy = date(2026, 10, 21)
+    assert anio_natural(10, 28, hoy=hoy) == 2026
+    assert anio_natural(10, 20, hoy=hoy) == 2027
+    assert anio_natural(1, 5, hoy=hoy) == 2027

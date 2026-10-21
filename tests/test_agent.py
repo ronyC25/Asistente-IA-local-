@@ -3,6 +3,7 @@ from __future__ import annotations
 from src.brain.agent import Agent, partition_calls
 from src.brain.registry import Registry
 from src.brain.schema import build_tools
+from src.timeutil import anio_natural
 
 
 def _registry() -> Registry:
@@ -825,3 +826,454 @@ def test_run_loop_ignora_think_y_reintenta():
     assert info is None
     assert reply == "Hola, ¿en qué ayudo?"
     assert "think" not in reply
+
+def test_ajustar_args_corrige_anio_inventado():
+    agent = Agent(_registry(), model="dummy", system_prompt="sys")
+    parsed = [
+        (
+            "crear_evento",
+            {
+                "titulo": "Examen",
+                "inicio": "2023-10-26T10:00",
+                "fin": "2023-10-26T12:00",
+            },
+        )
+    ]
+    out = agent._ajustar_args(parsed, "crea un evento el 26 de octubre de 10 a 12")
+    d = dict(out)["crear_evento"]
+    anio = anio_natural(10, 26)
+    assert d["inicio"].startswith(f"{anio}-10-26")
+    assert d["fin"].startswith(f"{anio}-10-26")
+
+
+def test_ajustar_args_respeta_anio_explicito():
+    agent = Agent(_registry(), model="dummy", system_prompt="sys")
+    parsed = [
+        (
+            "crear_evento",
+            {"titulo": "Examen", "inicio": "2023-10-26T10:00"},
+        )
+    ]
+    out = agent._ajustar_args(
+        parsed, "crea un evento el 26 de octubre de 2023 a las 10"
+    )
+    assert dict(out)["crear_evento"]["inicio"].startswith("2023-10-26")
+
+
+def test_mixed_read_write_propone_todas_las_escrituras():
+    responses = [
+        {
+            "message": {
+                "role": "assistant",
+                "content": "",
+                "tool_calls": [
+                    {
+                        "function": {
+                            "name": "crear_evento",
+                            "arguments": {
+                                "titulo": "Evento A",
+                                "inicio": "2026-10-26T10:00",
+                            },
+                        }
+                    },
+                    {
+                        "function": {
+                            "name": "listar_eventos",
+                            "arguments": {},
+                        }
+                    },
+                    {
+                        "function": {
+                            "name": "crear_evento",
+                            "arguments": {
+                                "titulo": "Evento B",
+                                "inicio": "2026-10-28T14:00",
+                            },
+                        }
+                    },
+                ],
+            }
+        }
+    ]
+    agent = Agent(_registry(), model="dummy", system_prompt="sys")
+    agent.client = _ScriptClient(responses)
+    llamadas: list[str] = []
+
+    def fake_exec(name, args):
+        llamadas.append(name)
+        if name == "listar_eventos":
+            return {"ok": True, "resultado": {"total": 0, "eventos": []}}
+        return {"ok": True, "resultado": {"id": 1, **args}}
+
+    agent._execute = fake_exec
+    s = agent.new_session()
+    reply, info = agent.handle(s, "crea dos eventos y muestrame los eventos")
+
+    assert info == {"type": "confirm"}
+    assert [n for n, _ in s.pending] == ["crear_evento", "crear_evento"]
+    assert llamadas == ["listar_eventos"]  # las escrituras aun no se ejecutan
+    assert "Evento A" in reply and "Evento B" in reply
+
+    # Historial: assistant(lectura), tool(lectura), assistant(escrituras).
+    idx_user = max(
+        i for i, m in enumerate(s.messages) if m.get("role") == "user"
+    )
+    cola = s.messages[idx_user + 1 :]
+    assert cola[0]["role"] == "assistant"
+    assert [tc["function"]["name"] for tc in cola[0]["tool_calls"]] == [
+        "listar_eventos"
+    ]
+    assert cola[1]["role"] == "tool"
+    assert cola[1]["tool_name"] == "listar_eventos"
+    assert cola[2]["role"] == "assistant"
+    assert [tc["function"]["name"] for tc in cola[2]["tool_calls"]] == [
+        "crear_evento",
+        "crear_evento",
+    ]
+
+
+def test_confirmacion_permite_proponer_la_accion_que_falta():
+    responses = [
+        {
+            "message": {
+                "role": "assistant",
+                "content": "",
+                "tool_calls": [
+                    {
+                        "function": {
+                            "name": "crear_evento",
+                            "arguments": {
+                                "titulo": "Evento B",
+                                "inicio": "2026-10-28T14:00",
+                            },
+                        }
+                    }
+                ],
+            }
+        },
+        {"message": {"role": "assistant", "content": "Listo, cree los dos eventos."}},
+    ]
+    agent = Agent(_registry(), model="dummy", system_prompt="sys")
+    agent.client = _ScriptClient(responses)
+    ejecutadas: list[tuple[str, dict]] = []
+
+    def fake_exec(name, args):
+        ejecutadas.append((name, args))
+        return {"ok": True, "resultado": {"id": len(ejecutadas), **args}}
+
+    agent._execute = fake_exec
+    s = agent.new_session()
+    primero = {"titulo": "Evento A", "inicio": "2026-10-26T10:00"}
+    s.pending = [("crear_evento", primero)]
+    s.messages.append(
+        {
+            "role": "assistant",
+            "content": "",
+            "tool_calls": [
+                {"function": {"name": "crear_evento", "arguments": primero}}
+            ],
+        }
+    )
+
+    reply, info = agent.handle(s, "si")
+    assert [n for n, _ in ejecutadas] == ["crear_evento"]
+    assert info == {"type": "confirm"}
+    assert s.pending is not None
+    assert s.pending[0][1]["titulo"] == "Evento B"
+
+    reply2, info2 = agent.handle(s, "si")
+    assert info2 is None
+    assert [a.get("titulo") for n, a in ejecutadas if n == "crear_evento"] == [
+        "Evento A",
+        "Evento B",
+    ]
+
+
+def test_cancelar_pending_anota_un_resultado_por_accion():
+    agent = Agent(_registry(), model="dummy", system_prompt="sys")
+    agent.client = _ScriptClient(
+        [{"message": {"role": "assistant", "content": "Cancelado."}}]
+    )
+    s = agent.new_session()
+    s.pending = [
+        ("crear_evento", {"titulo": "A", "inicio": "2026-10-26T10:00"}),
+        ("crear_evento", {"titulo": "B", "inicio": "2026-10-28T14:00"}),
+    ]
+    s.messages.append(
+        {
+            "role": "assistant",
+            "content": "",
+            "tool_calls": [
+                {"function": {"name": n, "arguments": a}} for n, a in s.pending
+            ],
+        }
+    )
+
+    reply, info = agent.handle(s, "no")
+    assert info is None
+    tools = [m for m in s.messages if m.get("role") == "tool"]
+    assert len(tools) == 2
+    assert all(m.get("tool_name") == "crear_evento" for m in tools)
+
+class _CaptureScript:
+    def __init__(self, responses):
+        self.responses = list(responses)
+        self.calls: list[dict] = []
+
+    def chat(self, **kwargs):
+        self.calls.append(kwargs)
+        return self.responses.pop(0)
+
+
+def test_call_solo_tools_del_dominio():
+    responses = [
+        {
+            "message": {
+                "role": "assistant",
+                "content": "",
+                "tool_calls": [
+                    {
+                        "function": {
+                            "name": "listar_tareas",
+                            "arguments": {},
+                        }
+                    }
+                ],
+            }
+        },
+        {"message": {"role": "assistant", "content": "Tienes 0 tareas."}},
+    ]
+    agent = Agent(_registry(), model="dummy", system_prompt="sys")
+    client = _CaptureScript(responses)
+    agent.client = client
+    agent._execute = lambda name, args: {
+        "ok": True,
+        "resultado": {"total": 0, "tareas": []},
+    }
+    reply, info = agent.handle(agent.new_session(), "que tareas tengo")
+    assert reply == "Tienes 0 tareas."
+    names = {t["function"]["name"] for t in client.calls[0]["tools"]}
+    assert "listar_tareas" in names
+    assert "enviar_email" not in names
+    assert "crear_evento" not in names
+
+
+def test_fallback_full_tools():
+    responses = [
+        {"message": {"role": "assistant", "content": "No se."}},
+        {
+            "message": {
+                "role": "assistant",
+                "content": "",
+                "tool_calls": [
+                    {
+                        "function": {
+                            "name": "listar_tareas",
+                            "arguments": {},
+                        }
+                    }
+                ],
+            }
+        },
+        {"message": {"role": "assistant", "content": "Tienes 0 tareas."}},
+    ]
+    agent = Agent(_registry(), model="dummy", system_prompt="sys")
+    client = _CaptureScript(responses)
+    agent.client = client
+    agent._execute = lambda name, args: {
+        "ok": True,
+        "resultado": {"total": 0, "tareas": []},
+    }
+    agent.handle(agent.new_session(), "que tareas tengo")
+    assert len(client.calls[1]["tools"]) == len(agent.registry.schemas())
+    assert len(client.calls[1]["tools"]) > len(client.calls[0]["tools"])
+
+
+def test_recortar_presupuesto_conserva_sistemas():
+    agent = Agent(
+        _registry(),
+        model="dummy",
+        system_prompt="sys",
+        num_ctx=4096,
+        num_predict=200,
+    )
+    s = agent.new_session()
+    s.messages.append({"role": "system", "content": "RESUMEN"})
+    for i in range(20):
+        s.messages.append({"role": "user", "content": "x" * 2000})
+        s.messages.append({"role": "assistant", "content": "y" * 2000})
+    esquemas = agent.registry.schemas({"core"})
+    antes = agent._estimar_tokens(s.messages, esquemas)
+    agent._recortar_presupuesto(s, esquemas)
+    despues = agent._estimar_tokens(s.messages, esquemas)
+    assert despues < antes
+    assert despues <= 4096 - 200 - 400
+    assert s.messages[0]["content"] == "sys"
+    assert s.messages[1]["content"] == "RESUMEN"
+
+
+def test_persistencia_sesion(tmp_path):
+    from src.brain.memory import SessionStore
+
+    store = SessionStore(str(tmp_path / "mem.db"))
+    agent = Agent(
+        _registry(),
+        model="dummy",
+        system_prompt="sys",
+        store=store,
+        memory={
+            "enabled": True,
+            "history_limit": 16,
+            "summary_after": 100,
+            "facts_limit": 20,
+        },
+    )
+    agent.client = _ScriptClient(
+        [{"message": {"role": "assistant", "content": "Hola!"}}]
+    )
+    s = agent.new_session(session_id="web-1", canal="web")
+    agent.handle(s, "hola")
+    s2 = agent.new_session(session_id="web-1", canal="web")
+    contenidos = [m.get("content") for m in s2.messages]
+    assert "hola" in contenidos
+    assert "Hola!" in contenidos
+
+
+def test_pending_persistido(tmp_path):
+    from src.brain.memory import SessionStore
+
+    store = SessionStore(str(tmp_path / "mem.db"))
+    agent = Agent(
+        _registry(),
+        model="dummy",
+        system_prompt="sys",
+        store=store,
+        memory={
+            "enabled": True,
+            "history_limit": 16,
+            "summary_after": 100,
+            "facts_limit": 20,
+        },
+    )
+    agent.client = _ScriptClient(
+        [
+            {
+                "message": {
+                    "role": "assistant",
+                    "content": "",
+                    "tool_calls": [
+                        {
+                            "function": {
+                                "name": "crear_evento",
+                                "arguments": {
+                                    "titulo": "Examen",
+                                    "inicio": "2026-10-28T10:00",
+                                },
+                            }
+                        }
+                    ],
+                }
+            }
+        ]
+    )
+    s = agent.new_session(session_id="tg-1", canal="telegram")
+    reply, info = agent.handle(s, "crea un evento el 28 de octubre a las 10")
+    assert info == {"type": "confirm"}
+
+    s2 = agent.new_session(session_id="tg-1", canal="telegram")
+    assert s2.pending is not None
+    assert s2.pending[0][0] == "crear_evento"
+    assert s2.messages[-1].get("tool_calls")
+
+    ejecutadas = []
+
+    def fake_exec(name, args):
+        ejecutadas.append((name, args))
+        return {"ok": True, "resultado": {"id": 1, **args}}
+
+    agent._execute = fake_exec
+    agent.client = _ScriptClient(
+        [{"message": {"role": "assistant", "content": "Evento creado."}}]
+    )
+    reply2, info2 = agent.handle(s2, "si")
+    assert info2 is None
+    assert ejecutadas and ejecutadas[0][0] == "crear_evento"
+
+
+def test_recuerda_y_olvida(tmp_path):
+    from src.brain.memory import SessionStore
+
+    store = SessionStore(str(tmp_path / "mem.db"))
+    agent = Agent(
+        _registry(),
+        model="dummy",
+        system_prompt="sys",
+        store=store,
+        memory={
+            "enabled": True,
+            "history_limit": 16,
+            "summary_after": 100,
+            "facts_limit": 20,
+        },
+    )
+    s = agent.new_session(session_id="m-1", canal="web")
+    r, _ = agent.handle(s, "recuerda que me gusta el cafe")
+    assert "recordare" in r.lower()
+    assert [f["valor"] for f in store.list_facts()] == ["me gusta el cafe"]
+
+    r2, _ = agent.handle(s, "/memoria")
+    assert "cafe" in r2
+
+    agent.handle(s, "/olvida cafe")
+    assert store.list_facts() == []
+
+
+def test_trim_conserva_resumen_y_hechos():
+    agent = Agent(
+        _registry(), model="dummy", system_prompt="sys", history_limit=2
+    )
+    s = agent.new_session()
+    s.messages += [
+        {"role": "system", "content": "RESUMEN"},
+        {"role": "system", "content": "HECHOS"},
+    ]
+    for i in range(6):
+        s.messages.append({"role": "user", "content": f"u{i}"})
+        s.messages.append({"role": "assistant", "content": f"a{i}"})
+    agent._trim(s)
+    contenidos = [m.get("content") for m in s.messages]
+    assert "RESUMEN" in contenidos
+    assert "HECHOS" in contenidos
+
+def test_resumen_automatico(tmp_path):
+    from src.brain.memory import SessionStore
+
+    store = SessionStore(str(tmp_path / "mem.db"))
+    agent = Agent(
+        _registry(),
+        model="dummy",
+        system_prompt="sys",
+        store=store,
+        memory={
+            "enabled": True,
+            "history_limit": 2,
+            "summary_after": 4,
+            "facts_limit": 20,
+        },
+    )
+    agent.client = _ScriptClient(
+        [
+            {"message": {"role": "assistant", "content": f"respuesta {i}"}}
+            for i in range(6)
+        ]
+    )
+    agent._resumir = lambda previo, texto: "RESUMEN NUEVO"
+    s = agent.new_session(session_id="sum-1", canal="web")
+    for i in range(5):
+        agent.handle(s, f"mensaje {i}")
+
+    s2 = agent.new_session(session_id="sum-1", canal="web")
+    assert s2.resumen == "RESUMEN NUEVO"
+    assert any(
+        "RESUMEN NUEVO" in (m.get("content") or "") for m in s2.messages
+    )

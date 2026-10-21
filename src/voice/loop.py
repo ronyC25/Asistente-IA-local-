@@ -75,7 +75,7 @@ def run(agent, debug: bool = False) -> None:
     print(f"Microfono: {devname}")
     print("Cargando componentes de voz...")
     ww = WakeWord()
-    session = agent.new_session()
+    session = agent.new_session(session_id="voice", canal="voice")
     ultima: str | None = None
 
     print(f"Di '{ww.name.replace('_', ' ')}' para activarme. Di 'salir' para terminar.")

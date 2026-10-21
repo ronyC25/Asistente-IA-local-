@@ -52,6 +52,8 @@ src/
     capabilities.py  # lista de capacidades (respuesta determinista, sin LLM)
     tooltext.py      # recupera tool-calls escritas como texto (JSON/tags)
     voice_guard.py   # filtro anti-eco del microfono (voz/avatar)
+    memory.py        # memoria persistente (sesiones, resumen, hechos) + SessionStore
+    router.py        # seleccion determinista de grupos de tools por turno
   tools/
     tasks.py         # tareas (CRUD)
     reminders.py     # recordatorios (CRUD + recurrencia)
@@ -79,7 +81,7 @@ avatar/              # app Live2D + overlay Electron (Fase 7)
   electron/          #   ventana overlay transparente y click-through
   setup_assets.ps1   #   descarga librerias + modelos Haru/Wanko (no versionados)
 start*.ps1           # lanzadores (venv + modos + start-all + auth)
-tests/               # 382 tests (pytest)
+tests/               # 418 tests (pytest)
 ```
 
 ## Herramientas del agente (27)
@@ -169,6 +171,35 @@ el evento que ya paso"/"cancelalo" y propone el evento correcto (sin depender de
 modelo); `agent._ajustar_args` sobrescribe el id si el modelo eligio otro. Ademas
 `cancelar_evento` acepta `titulo` (cancelar por titulo).
 
+## Memoria persistente y router
+
+**Memoria** (`src/brain/memory.py`, tablas `sessions`, `messages`, `memories`):
+- Conversaciones persistentes por sesion/canal: web (`session_id`), Telegram
+  (`chat_id`), CLI (`cli`), voz (`voice`) y avatar (`avatar`). Al reiniciar se cargan
+  los ultimos `memory.history_limit` mensajes + resumen + `pending` + `ultimos_eventos`.
+- Un `pending` guardado permite responder "si" despues de reiniciar.
+- **Resumen**: cuando hay mas de `memory.summary_after` mensajes sin resumir, se
+  resume lo antiguo con el LLM (sin tools) y se guarda en `sessions.resumen`; se
+  conservan los ultimos mensajes. Es sincrono (una pausa ocasional cada ~30 mensajes).
+- **Hechos globales** compartidos entre canales: `recuerda que ...`, `/memoria`,
+  `/olvida ...` y `/olvida todo` (hechos + resumen). Se inyectan al inicio de cada
+  sesion (max. `memory.facts_limit`) marcados como datos, no instrucciones.
+- `/reset` (CLI/Telegram), `/session/{id}/reset` (web) y `/nueva` borran historial,
+  resumen y pending de esa sesion.
+- SQLite en **WAL** + `busy_timeout` para que web y Telegram escriban a la vez.
+
+**Router** (`src/brain/router.py`):
+- Selecciona grupos de tools segun el mensaje (tareas, eventos, recordatorios, notas,
+  listas, temporizadores, mensajeria, email, busqueda) + `core` (`fecha_hora_actual`).
+- Multi-dominio = union; sin senal clara = solo `core`; accion/consulta desconocida =
+  todas. Si el modelo no llama ninguna tool, se reintenta con todas las tools
+  (`tools.fallback_full`).
+- Efecto medido: "que tareas tengo" envia 6 tools y ~3.1k tokens de prompt (antes
+  ~6.5k); "crea dos eventos..." envia 7 tools y ~3.2k.
+- `tools.mode: full` desactiva el router para depurar.
+- `agent._recortar_presupuesto` recorta historial si el prompt estimado no cabe en
+  `num_ctx`, conservando el system, el resumen y los hechos.
+
 ## Como arrancar
 
 > Usa siempre el Python del `.venv` (`.\.venv\Scripts\python.exe`) o los scripts
@@ -257,9 +288,10 @@ Requisitos: Ollama en ejecucion con `qwen3:8b` (`ollama pull qwen3:8b`).
 
 ### `config/settings.yaml`
 Modelo, temperatura, contexto, nombre, ruta de BD, host/puerto web y bloque
-`voice` (whisper_model, tts_voice, wake_model, wake_threshold, input_device...) y
+`voice` (whisper_model, tts_voice, wake_model, wake_threshold, input_device...),
 `google_calendar` (enabled, calendar_id, credentials_file, token_file, timezone,
-conflict_policy).
+conflict_policy), `memory` (enabled, summary_after, history_limit, facts_limit,
+keep_messages) y `tools` (mode: auto|full, fallback_full).
 
 ### `.env` (no se versiona; copia de `.env.example`)
 | Clave | Estado |
@@ -286,8 +318,8 @@ aplicacion** (requiere verificacion en 2 pasos).
 ## Pendientes / proximos pasos
 
 1. **Gmail**: rellenar los 5 campos de `.env` y verificar `leer_email`/`enviar_email`.
-2. **Pulido de la UI web**: memoria de conversacion persistente, visor de logs e
-   icono en la bandeja del sistema.
+2. **Pulido de la UI web**: visor de logs e icono en la bandeja del sistema. La
+   memoria de conversacion persistente ya esta hecha (backend y canales).
 3. **Bot Telegram bidireccional**: escuchar mensajes entrantes (long polling de
    `getUpdates`) para controlar el asistente desde el chat de Telegram. **Hecho**
    (modo `--telegram`, `src/telegram_bot.py`).
@@ -296,6 +328,8 @@ aplicacion** (requiere verificacion en 2 pasos).
    tool `sincronizar_calendario`).
 5. **Wake word personalizado**: entrenar un modelo para activarlo diciendo solo
    "Jarvis" en espanol.
+6. **Memoria automatica**: extraer hechos duraderos de la conversacion sin que el
+   usuario diga "recuerda que..." (fase 2, con validacion/deduplicacion).
 
 ## Notas conocidas / problemas
 
@@ -309,7 +343,7 @@ aplicacion** (requiere verificacion en 2 pasos).
   acciones de escritura tras una lectura (ya implementado en `agent.py`).
 - **Rendimiento LLM**: qwen3 con *thinking* ON generaba ~10x mas tokens y ~18x mas
   tiempo (medido: 7.17s/103 tok vs 0.40s/10 tok). Ahora se llama con `think=False`,
-  `num_predict: 400`, `keep_alive: 30m`, `num_ctx: 6144` e `history_limit: 16`
+  `num_predict: 400`, `keep_alive: 30m`, `num_ctx: 8192` e `history_limit: 16`
   (recorte de historial por sesion). Todo configurable en `settings.yaml`.
 - **Guardarrail de consultas**: si el modelo responde una CONSULTA (tareas,
   recordatorios, calendario, correo) sin llamar a la herramienta de lectura, el
@@ -356,6 +390,25 @@ aplicacion** (requiere verificacion en 2 pasos).
   vacio, se pide un resumen **sin herramientas** con los datos ya leidos. Ademas, una
   consulta pura (`que listas tengo`) ya **no propone escrituras** que el modelo inventa
   al leer (se ejecuta la lectura y se resume).
+- **Varias escrituras en un turno**: `agent._run_loop` ya **no mezcla** tool_calls de
+  lectura y escritura en el mismo mensaje `assistant`. Ejecuta las lecturas y, si las
+  escrituras son seguras (`crear_evento`, `crear_tarea`, `crear_recordatorio`), propone
+  **todas** de una vez (asi "crea dos eventos" no pierde la segunda). Si son dependientes
+  (Telegram/email/export), el modelo las reemite con los datos leidos. Tras confirmar,
+  `agent.handle` permite proponer las acciones que falten y volver a consultar el estado
+  actualizado. Los mensajes `tool` llevan `tool_name`.
+- **Contexto y fechas**: `num_ctx: 8192` porque el prompt base (system + 27 tools) ocupa
+  ~6.5k tokens. Si el historial lo supera, Ollama trunca el inicio del prompt y qwen3
+  inventaba anos (p. ej. `2023`). Ahora `agent.handle` inserta un `system` con la fecha
+  actual **cerca del ultimo mensaje** y `agent._normalizar_anios` corrige el ano cuando el
+  usuario no lo dio explicitamente (2023 -> 2026, o 2027 si la fecha ya paso). En una GPU
+  de 8 GB, `num_ctx: 12288` hace spill a CPU (~1.8x mas lento): no subir sin medir.
+- **Memoria**: conversaciones por canal + hechos globales. El resumen es sincrono y
+  anade una llamada al LLM cada ~30 mensajes (una pausa ocasional). Si `memory.enabled`
+  es false o el `store` es None (tests), el agente funciona como antes.
+- **Router**: si el mensaje no tiene dominio claro, se usa `core`; si el modelo no
+  llama ninguna tool, se reintenta con todas (`tools.fallback_full`). `tools.mode: full`
+  desactiva el filtrado. Medido: consultas de tareas ~3.1k tokens vs ~6.5k antes.
 - **Notas/listas/eventos**: `consultar_notas` filtra por `periodo`/`dias`/`desde`/
   `hasta` y `orden` (recientes/antiguas); `gestionar_listas(accion='crear', items=[...])`
   crea la lista **con sus elementos en una sola llamada** y `consultar_listas('listar')`
@@ -403,6 +456,8 @@ aplicacion** (requiere verificacion en 2 pasos).
 
 ## Estado de datos
 
-- `data/assistant.db`: contiene tareas/recordatorios/eventos del usuario.
+- `data/assistant.db`: contiene tareas/recordatorios/eventos del usuario, sesiones,
+  mensajes y hechos de memoria (WAL).
+- `data/backups/`: copias de la BD antes de cambios de datos (no versionado).
 - `data/voices/`: voces Piper descargadas (120 MB, regenerables).
 - `data/calendario.ics`: export del calendario.

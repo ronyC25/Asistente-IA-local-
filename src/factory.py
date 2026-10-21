@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 from .brain.agent import Agent
+from .brain.memory import SessionStore
 from .brain.prompts import system_prompt
 from .brain.registry import Registry
 from .brain.schema import build_tools
@@ -19,6 +20,7 @@ def build_registry() -> Registry:
 def build_agent() -> Agent:
     init_db(settings.database)
     registry = build_registry()
+    store = SessionStore(settings.database) if settings.memory["enabled"] else None
     return Agent(
         registry=registry,
         model=settings.model,
@@ -30,4 +32,7 @@ def build_agent() -> Agent:
         keep_alive=settings.keep_alive,
         history_limit=settings.history_limit,
         host=settings.ollama_host,
+        store=store,
+        memory=settings.memory,
+        tools=settings.tools,
     )

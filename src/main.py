@@ -51,7 +51,7 @@ def cli() -> None:
         sys.exit(1)
 
     agent = build_agent()
-    session = agent.new_session()
+    session = agent.new_session(session_id="cli", canal="cli")
     start_scheduler()
     print("Escribe tu mensaje ('salir' para terminar).\n")
 
@@ -66,6 +66,11 @@ def cli() -> None:
                 continue
             if user.lower() in {"salir", "exit", "quit", "adios"}:
                 break
+            if user.lower() in {"/reset", "/nueva", "/nuevo"}:
+                agent.reset_session("cli")
+                session = agent.new_session(session_id="cli", canal="cli")
+                print(f"{settings.assistant_name} > Nueva conversacion iniciada.\n")
+                continue
             if user.lower() in {"/ayuda", "/help", "ayuda", "help", "funciones"}:
                 from .brain.capabilities import texto_capacidades
 

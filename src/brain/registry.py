@@ -52,8 +52,10 @@ class Registry:
     def get(self, name: str) -> Tool | None:
         return self._tools.get(name)
 
-    def schemas(self) -> list[dict]:
-        return [t.schema for t in self._tools.values()]
+    def schemas(self, nombres: set[str] | None = None) -> list[dict]:
+        if nombres is None:
+            return [t.schema for t in self._tools.values()]
+        return [t.schema for name, t in self._tools.items() if name in nombres]
 
     def names(self) -> list[str]:
         return list(self._tools)

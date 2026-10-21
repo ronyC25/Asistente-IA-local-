@@ -53,6 +53,21 @@ def _fin_dia(d: date) -> datetime:
     return datetime.combine(d, datetime.max.time()).replace(microsecond=0)
 
 
+def anio_natural(mes: int, dia: int, hoy: date | None = None) -> int:
+    """Ano que corresponde a un dia/mes sin ano explicito.
+
+    Si la fecha ya paso este ano, se usa el siguiente (igual que
+    ``confirm.fecha_de_texto``). Sirve para corregir anos inventados por el
+    modelo al crear eventos/tareas/recordatorios.
+    """
+    hoy = hoy or date.today()
+    try:
+        f = date(hoy.year, mes, dia)
+    except ValueError:
+        return hoy.year
+    return f.year if f >= hoy else f.year + 1
+
+
 def resolver_periodo(
     periodo: str,
     dias: int | None = None,

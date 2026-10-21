@@ -118,6 +118,10 @@ Escribe (o di) cosas como:
 - "Mandame la lista de recordatorios por Telegram"
 - "Lee mis ultimos 3 correos"
 - "Sincroniza mi calendario con Google"          # requiere Google Calendar configurado
+- "Recuerda que me gusta el cafe"                  # hecho duradero (global, todos los canales)
+- "/memoria"                                       # ver hechos + resumen de la conversacion
+- "/olvida cafe"                                   # borrar un hecho (o "/olvida todo")
+- "/reset"                                         # nueva conversacion (borra historial y resumen)
 
 Las acciones que modifican datos piden confirmacion (`si` / `no`).
 
@@ -128,6 +132,23 @@ Las acciones que modifican datos piden confirmacion (`si` / `no`).
 
 La **semana** ("esta semana", "semana que viene", "semana pasada") empieza en **domingo**
 por defecto; se cambia con `week_start: domingo|lunes` en `config/settings.yaml`.
+
+El contexto del modelo (`num_ctx`) esta en **8192** para caber entero en una GPU de 8 GB
+(el prompt base ocupa ~6.5k tokens). Si lo subes, comprueba con `ollama ps` que Ollama
+sigue usando la GPU y no hace spill a CPU.
+
+### Memoria
+Las conversaciones se guardan en SQLite por canal (web, Telegram, CLI, voz y avatar) y
+se recuperan al reiniciar; un `pending` guardado permite responder "si" despues de un
+reinicio. Cuando la conversacion crece (~30 mensajes) se genera un resumen automatico.
+Los hechos de `recuerda que ...` son globales y se comparten entre canales. Se gestionan
+con `/memoria`, `/olvida ...` y `/reset`. Configurable en `settings.yaml` (`memory`).
+
+### Router de herramientas
+El agente envia por turno solo las tools del dominio detectado (tareas, eventos, email,
+etc.) para bajar el prompt (~3k tokens en vez de ~6.5k) y dejar sitio al historial. Si no
+hay dominio claro o el modelo no llama ninguna tool, reintenta con todas. Se desactiva
+con `tools.mode: full` en `config/settings.yaml`.
 
 ### Telegram
 1. Crea un bot con `@BotFather` y copia el token en `TELEGRAM_BOT_TOKEN`.

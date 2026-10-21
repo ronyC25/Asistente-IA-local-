@@ -99,7 +99,9 @@ class TelegramBot:
     def _session(self, chat_id: str):
         session = self._sessions.get(chat_id)
         if session is None:
-            session = self._agent.new_session()
+            session = self._agent.new_session(
+                session_id=chat_id, canal="telegram"
+            )
             self._sessions[chat_id] = session
         return session
 
@@ -111,6 +113,9 @@ class TelegramBot:
     def _responder(self, chat_id: str, texto: str) -> None:
         if self._es_comando(texto, _COMANDOS_RESET):
             self._sessions.pop(chat_id, None)
+            reset = getattr(self._agent, "reset_session", None)
+            if reset is not None:
+                reset(chat_id)
             self._send(chat_id, "Nueva conversacion iniciada. En que te ayudo?")
             return
         if self._es_comando(texto, _COMANDOS_PING):

@@ -11,8 +11,11 @@ class _FakeAgent:
         self.reply = reply
         self.calls: list[str] = []
 
-    def new_session(self):
+    def new_session(self, session_id=None, canal="cli"):
         return object()
+
+    def reset_session(self, session_id):
+        pass
 
     def handle(self, session, text):
         self.calls.append(text)
