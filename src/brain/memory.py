@@ -79,8 +79,9 @@ def _loads(value: str | None, default: Any) -> Any:
 class SessionStore:
     """Acceso a las tablas de memoria (sessions, messages, memories)."""
 
-    def __init__(self, db_path: str) -> None:
+    def __init__(self, db_path: str, keep_messages: int = 500) -> None:
         self.db_path = db_path
+        self.keep_messages = max(50, int(keep_messages))
         init_db(db_path)
 
     def _conn(self) -> sqlite3.Connection:
@@ -150,6 +151,7 @@ class SessionStore:
                     "VALUES (?, 'assistant', ?)",
                     (session_id, reply),
                 )
+            self._prune(conn, session_id)
             self._save_state_conn(conn, session_id, canal, pending, ultimos_eventos)
             conn.commit()
         finally:
@@ -169,6 +171,22 @@ class SessionStore:
             conn.commit()
         finally:
             conn.close()
+
+    def _prune(self, conn: sqlite3.Connection, session_id: str) -> None:
+        """Conserva solo los ultimos ``keep_messages`` mensajes de la sesion."""
+        if self.keep_messages <= 0:
+            return
+        row = conn.execute(
+            "SELECT MAX(id) AS max_id FROM messages WHERE session_id = ?",
+            (session_id,),
+        ).fetchone()
+        max_id = int(row["max_id"]) if row is not None and row["max_id"] else 0
+        if not max_id:
+            return
+        conn.execute(
+            "DELETE FROM messages WHERE session_id = ? AND id <= ?",
+            (session_id, max_id - self.keep_messages),
+        )
 
     @staticmethod
     def _save_state_conn(

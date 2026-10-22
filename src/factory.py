@@ -20,7 +20,14 @@ def build_registry() -> Registry:
 def build_agent() -> Agent:
     init_db(settings.database)
     registry = build_registry()
-    store = SessionStore(settings.database) if settings.memory["enabled"] else None
+    store = (
+        SessionStore(
+            settings.database,
+            keep_messages=settings.memory["keep_messages"],
+        )
+        if settings.memory["enabled"]
+        else None
+    )
     return Agent(
         registry=registry,
         model=settings.model,

@@ -73,3 +73,11 @@ def test_extraer_comandos_de_memoria():
     assert hecho_de_texto("recuerdame llamar al banco") is None
     assert olvido_de_texto("olvida que me gusta el cafe") == "me gusta el cafe"
     assert olvido_de_texto("/olvida cafe") == "cafe"
+
+def test_retencion_de_mensajes(tmp_path):
+    store = SessionStore(str(tmp_path / "memory.db"), keep_messages=50)
+    for i in range(30):
+        store.save_turn("s1", "web", f"u{i}", f"a{i}", None, [])
+    data = store.load("s1", "web", limite=100)
+    assert len(data["mensajes"]) <= 50
+    assert data["mensajes"][-1]["content"] == "a29"
